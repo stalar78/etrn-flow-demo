@@ -1,0 +1,39 @@
+:root {
+  color: #17211a;
+  background: #f3efe4;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+body {
+  margin: 0;
+}
+
+.foundation-shell {
+  box-sizing: border-box;
+  display: grid;
+  min-height: 100vh;
+  align-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  background:
+    radial-gradient(circle at top left, rgb(211 225 185 / 75%), transparent 32rem),
+    linear-gradient(135deg, #f8f4e9 0%, #e7dcc5 100%);
+}
+
+.foundation-shell h1 {
+  max-width: 46rem;
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 6rem);
+  line-height: 0.92;
+}
+
+.foundation-shell p {
+  max-width: 42rem;
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.eyebrow {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
