@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import type {
   AppendShipmentEventInput,
@@ -95,6 +95,24 @@ class PostgresShipmentRepository implements ShipmentRepository {
     return coerceShipmentRecord(record);
   }
 
+  async countByReferences(input: { guestSessionId: string; references: string[] }) {
+    if (input.references.length === 0) {
+      return 0;
+    }
+
+    const records = await this.db
+      .select({ id: shipments.id })
+      .from(shipments)
+      .where(
+        and(
+          eq(shipments.guestSessionId, input.guestSessionId),
+          inArray(shipments.reference, input.references)
+        )
+      );
+
+    return records.length;
+  }
+
   async findByIdScoped(input: { guestSessionId: string; shipmentId: string }) {
     const [record] = await this.db
       .select()
@@ -115,7 +133,7 @@ class PostgresShipmentRepository implements ShipmentRepository {
       .select()
       .from(shipments)
       .where(eq(shipments.guestSessionId, guestSessionId))
-      .orderBy(asc(shipments.createdAt), asc(shipments.id));
+      .orderBy(desc(shipments.updatedAt), asc(shipments.id));
 
     return records.map(coerceShipmentRecord);
   }

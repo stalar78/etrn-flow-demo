@@ -64,6 +64,10 @@ export interface GuestSessionRepository {
 
 export interface ShipmentRepository {
   create(input: CreateShipmentInput): Promise<ShipmentRecord>;
+  countByReferences(input: {
+    guestSessionId: string;
+    references: string[];
+  }): Promise<number>;
   findByIdScoped(input: {
     guestSessionId: string;
     shipmentId: string;
