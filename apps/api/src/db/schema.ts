@@ -3,10 +3,12 @@ import {
   check,
   foreignKey,
   index,
+  bigserial,
   jsonb,
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid
 } from "drizzle-orm/pg-core";
@@ -43,9 +45,10 @@ export const shipments = pgTable(
       "shipments_guest_session_reference_unique"
     ).on(table.guestSessionId, table.reference),
     guestSessionIndex: index("shipments_guest_session_idx").on(table.guestSessionId),
-    guestSessionShipmentUnique: uniqueIndex(
-      "shipments_guest_session_id_unique"
-    ).on(table.guestSessionId, table.id),
+    guestSessionShipmentUnique: unique("shipments_guest_session_id_unique").on(
+      table.guestSessionId,
+      table.id
+    ),
     stateCheck: check(
       "shipments_state_check",
       sql.raw(`${table.state.name} in (${workflowStateSqlList})`)
@@ -57,6 +60,7 @@ export const shipmentEvents = pgTable(
   "shipment_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    sequence: bigserial("sequence", { mode: "number" }).unique(),
     guestSessionId: uuid("guest_session_id")
       .notNull()
       .references(() => guestSessions.id, { onDelete: "cascade" }),
@@ -74,9 +78,7 @@ export const shipmentEvents = pgTable(
     shipmentEventsGuestShipmentIdx: index(
       "shipment_events_guest_session_shipment_idx"
     ).on(table.guestSessionId, table.shipmentId),
-    shipmentEventsCreatedAtIdx: index("shipment_events_created_at_idx").on(
-      table.createdAt
-    ),
+    shipmentEventsSequenceIdx: index("shipment_events_sequence_idx").on(table.sequence),
     sameGuestSessionShipmentFk: foreignKey({
       columns: [table.guestSessionId, table.shipmentId],
       foreignColumns: [shipments.guestSessionId, shipments.id],

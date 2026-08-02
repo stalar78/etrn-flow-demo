@@ -1,5 +1,5 @@
 {
-  "id": "694ed81e-4354-49c1-a49c-e2d681aed0e0",
+  "id": "4ac2c745-4bea-4e94-85a0-f0ac1555d5fe",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -54,6 +54,12 @@
           "primaryKey": true,
           "notNull": true,
           "default": "gen_random_uuid()"
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
         },
         "guest_session_id": {
           "name": "guest_session_id",
@@ -128,11 +134,11 @@
           "method": "btree",
           "with": {}
         },
-        "shipment_events_created_at_idx": {
-          "name": "shipment_events_created_at_idx",
+        "shipment_events_sequence_idx": {
+          "name": "shipment_events_sequence_idx",
           "columns": [
             {
-              "expression": "created_at",
+              "expression": "sequence",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -188,7 +194,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "shipment_events_sequence_unique": {
+          "name": "shipment_events_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "sequence"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "shipment_events_actor_role_check": {
@@ -286,27 +300,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "shipments_guest_session_id_unique": {
-          "name": "shipments_guest_session_id_unique",
-          "columns": [
-            {
-              "expression": "guest_session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -325,7 +318,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "shipments_guest_session_id_unique": {
+          "name": "shipments_guest_session_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "guest_session_id",
+            "id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "shipments_state_check": {

@@ -153,7 +153,7 @@ class PostgresShipmentEventRepository implements ShipmentEventRepository {
           eq(shipmentEvents.shipmentId, input.shipmentId)
         )
       )
-      .orderBy(asc(shipmentEvents.createdAt), asc(shipmentEvents.id));
+      .orderBy(asc(shipmentEvents.sequence));
 
     return records.map(coerceShipmentEventRecord);
   }

@@ -89,7 +89,7 @@ describe("PostgreSQL persistence repositories", () => {
     ).resolves.toEqual([expect.objectContaining({ id: sameReferenceOtherSession.id })]);
   });
 
-  it("appends shipment events and lists them in order within one guest session", async () => {
+  it("appends shipment events and lists them in deterministic append order", async () => {
     const firstSession = await repositories.guestSessions.create({
       expiresAt: tomorrow()
     });
@@ -102,7 +102,7 @@ describe("PostgreSQL persistence repositories", () => {
       state: "draft"
     });
 
-    await repositories.shipmentEvents.append({
+    const firstEvent = await repositories.shipmentEvents.append({
       guestSessionId: firstSession.id,
       shipmentId: shipment.id,
       eventType: "shipment_created",
@@ -110,7 +110,7 @@ describe("PostgreSQL persistence repositories", () => {
       previousState: "draft",
       nextState: "draft"
     });
-    await repositories.shipmentEvents.append({
+    const secondEvent = await repositories.shipmentEvents.append({
       guestSessionId: firstSession.id,
       shipmentId: shipment.id,
       eventType: "prepare_dispatch",
@@ -118,6 +118,14 @@ describe("PostgreSQL persistence repositories", () => {
       previousState: "draft",
       nextState: "ready_for_dispatch",
       payload: { source: "integration-test" }
+    });
+    const thirdEvent = await repositories.shipmentEvents.append({
+      guestSessionId: firstSession.id,
+      shipmentId: shipment.id,
+      eventType: "dispatch",
+      actorRole: "dispatcher",
+      previousState: "ready_for_dispatch",
+      nextState: "awaiting_loading"
     });
 
     const events = await repositories.shipmentEvents.listForShipmentScoped({
@@ -127,8 +135,16 @@ describe("PostgreSQL persistence repositories", () => {
 
     expect(events.map((event) => event.eventType)).toEqual([
       "shipment_created",
-      "prepare_dispatch"
+      "prepare_dispatch",
+      "dispatch"
     ]);
+    expect(events.map((event) => event.sequence)).toEqual([
+      firstEvent.sequence,
+      secondEvent.sequence,
+      thirdEvent.sequence
+    ]);
+    expect(firstEvent.sequence).toBeLessThan(secondEvent.sequence);
+    expect(secondEvent.sequence).toBeLessThan(thirdEvent.sequence);
     expect(events[1]?.payload).toEqual({ source: "integration-test" });
 
     await expect(

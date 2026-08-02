@@ -18,6 +18,7 @@ export type ShipmentRecord = {
 
 export type ShipmentEventRecord = {
   id: string;
+  sequence: number;
   guestSessionId: string;
   shipmentId: string;
   eventType: string;
