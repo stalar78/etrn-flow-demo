@@ -143,6 +143,7 @@ describe("App", () => {
     fireEvent.click(action);
 
     expect(action).toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toBeDisabled();
     resolveTransition();
 
     await screen.findByText("Действие выполнено. Состояние и история обновлены.");
@@ -150,6 +151,51 @@ describe("App", () => {
       action: "markVehicleArrived",
       actorRole: "warehouse"
     });
+    expect(screen.getAllByText("Погрузка").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+  });
+
+  it("keeps shipment selection locked while a transition is pending", async () => {
+    const transition = deferred<Awaited<ReturnType<typeof api.executeShipmentAction>>>();
+    mockedApi.executeShipmentAction.mockReturnValueOnce(transition.promise);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /DEMO-001/i });
+    fireEvent.click(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+
+    const selectedShipment = screen.getByRole("button", { name: /DEMO-001/i });
+    const otherShipment = screen.getByRole("button", { name: /DEMO-002/i });
+
+    expect(selectedShipment).toBeDisabled();
+    expect(otherShipment).toBeDisabled();
+
+    fireEvent.click(otherShipment);
+
+    expect(selectedShipment).toHaveAttribute("aria-current", "true");
+    expect(otherShipment).not.toHaveAttribute("aria-current");
+  });
+
+  it("ignores a stale transition refresh detail that does not match the selected shipment", async () => {
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })]
+      })
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockResolvedValueOnce(detailFor("shipment-2"));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /DEMO-001/i });
+    fireEvent.click(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+
+    await screen.findByText("Действие выполнено. Состояние и история обновлены.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByText("DEMO-002")).not.toBeInTheDocument();
     expect(screen.getAllByText("Погрузка").length).toBeGreaterThan(0);
   });
 
@@ -173,6 +219,30 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
 
     await screen.findByText("Состояние перевозки уже изменилось. Данные обновлены.");
+    expect(screen.getAllByText("Погрузка").length).toBeGreaterThan(0);
+  });
+
+  it("ignores a stale transition-conflict refresh detail that does not match the selected shipment", async () => {
+    mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("transition_conflict"));
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })]
+      })
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockResolvedValueOnce(detailFor("shipment-2"));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /DEMO-001/i });
+    fireEvent.click(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+
+    await screen.findByText("Состояние перевозки уже изменилось. Данные обновлены.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByText("DEMO-002")).not.toBeInTheDocument();
     expect(screen.getAllByText("Погрузка").length).toBeGreaterThan(0);
   });
 
@@ -251,4 +321,15 @@ function shipmentEvent(overrides: Partial<ShipmentDetailResponse["events"][numbe
     createdAt: "2026-08-02T10:02:00.000Z",
     ...overrides
   };
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+
+  return { promise, reject, resolve };
 }

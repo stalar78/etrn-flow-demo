@@ -2,6 +2,7 @@ import type { ShipmentSummary } from "../api/etrn-flow-api";
 import { formatDateTime, shipmentStateLabels } from "../presentation/workflow-labels";
 
 type ShipmentListProps = {
+  isInteractionDisabled: boolean;
   isLoading: boolean;
   onSelect(shipmentId: string): void;
   selectedShipmentId: string | null;
@@ -9,6 +10,7 @@ type ShipmentListProps = {
 };
 
 export function ShipmentList({
+  isInteractionDisabled,
   isLoading,
   onSelect,
   selectedShipmentId,
@@ -37,6 +39,7 @@ export function ShipmentList({
             <button
               aria-current={isSelected ? "true" : undefined}
               className="shipment-list-item"
+              disabled={isInteractionDisabled}
               key={shipment.id}
               onClick={() => onSelect(shipment.id)}
               type="button"

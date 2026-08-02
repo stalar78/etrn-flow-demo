@@ -40,6 +40,12 @@ export function App() {
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(null);
   const [shipments, setShipments] = useState<ShipmentSummary[]>([]);
   const detailRequestRef = useRef(0);
+  const selectedShipmentIdRef = useRef<string | null>(null);
+
+  const setSelectedShipment = useCallback((shipmentId: string | null) => {
+    selectedShipmentIdRef.current = shipmentId;
+    setSelectedShipmentId(shipmentId);
+  }, []);
 
   const loadDetail = useCallback(async (shipmentId: string) => {
     const requestId = detailRequestRef.current + 1;
@@ -49,7 +55,11 @@ export function App() {
     try {
       const nextDetail = await getShipmentDetail(shipmentId);
 
-      if (detailRequestRef.current === requestId) {
+      if (
+        detailRequestRef.current === requestId
+        && selectedShipmentIdRef.current === nextDetail.shipment.id
+        && shipmentId === nextDetail.shipment.id
+      ) {
         setDetail(nextDetail);
       }
     } catch (error) {
@@ -75,7 +85,7 @@ export function App() {
     setPhase("initializing");
     setDetail(null);
     setShipments([]);
-    setSelectedShipmentId(null);
+    setSelectedShipment(null);
 
     try {
       await getHealth();
@@ -87,7 +97,7 @@ export function App() {
       const defaultShipment = pickDefaultShipment(shipmentResponse.shipments);
 
       setShipments(shipmentResponse.shipments);
-      setSelectedShipmentId(defaultShipment?.id ?? null);
+      setSelectedShipment(defaultShipment?.id ?? null);
 
       if (defaultShipment) {
         await loadDetail(defaultShipment.id);
@@ -106,24 +116,37 @@ export function App() {
         text: toRussianErrorMessage(error)
       });
     }
-  }, [loadDetail]);
+  }, [loadDetail, setSelectedShipment]);
 
   useEffect(() => {
     void initializeWorkspace();
   }, [initializeWorkspace]);
 
   async function refreshWorkspace(shipmentId: string) {
+    const requestId = detailRequestRef.current + 1;
+    detailRequestRef.current = requestId;
     const [shipmentResponse, nextDetail] = await Promise.all([
       listShipments(),
       getShipmentDetail(shipmentId)
     ]);
 
     setShipments(shipmentResponse.shipments);
-    setDetail(nextDetail);
+
+    if (
+      detailRequestRef.current === requestId
+      && selectedShipmentIdRef.current === nextDetail.shipment.id
+      && shipmentId === nextDetail.shipment.id
+    ) {
+      setDetail(nextDetail);
+    }
   }
 
   async function handleSelectShipment(shipmentId: string) {
-    setSelectedShipmentId(shipmentId);
+    if (phase === "initializing" || phase === "bootstrapping" || phase === "transitioning") {
+      return;
+    }
+
+    setSelectedShipment(shipmentId);
     setMessage(null);
     await loadDetail(shipmentId);
     setPhase("ready");
@@ -137,12 +160,14 @@ export function App() {
       return;
     }
 
+    const transitionShipmentId = selectedShipmentId;
+
     setPhase("transitioning");
     setMessage(null);
 
     try {
-      await executeShipmentAction(selectedShipmentId, input);
-      await refreshWorkspace(selectedShipmentId);
+      await executeShipmentAction(transitionShipmentId, input);
+      await refreshWorkspace(transitionShipmentId);
       setPhase("ready");
       setMessage({
         tone: "success",
@@ -154,7 +179,7 @@ export function App() {
       }
 
       if (error instanceof EtrnFlowApiError && error.code === "transition_conflict") {
-        await refreshWorkspace(selectedShipmentId);
+        await refreshWorkspace(transitionShipmentId);
       }
 
       setPhase("recoverable_error");
@@ -165,9 +190,13 @@ export function App() {
     }
   }
 
-  const selectedSummary = detail?.shipment
+  const currentDetail = detail?.shipment.id === selectedShipmentId ? detail : null;
+  const selectedSummary = currentDetail?.shipment
     ?? shipments.find((shipment) => shipment.id === selectedShipmentId)
     ?? null;
+  const isListInteractionDisabled = phase === "initializing"
+    || phase === "bootstrapping"
+    || phase === "transitioning";
 
   return (
     <div className="workspace-shell">
@@ -197,6 +226,7 @@ export function App() {
         {phase !== "fatal_initialization_error" ? (
           <div className="workspace-grid">
             <ShipmentList
+              isInteractionDisabled={isListInteractionDisabled}
               isLoading={phase === "initializing" || phase === "bootstrapping"}
               onSelect={(shipmentId) => void handleSelectShipment(shipmentId)}
               selectedShipmentId={selectedShipmentId}
@@ -210,7 +240,7 @@ export function App() {
                 onExecute={(input) => void handleExecuteAction(input)}
                 shipment={selectedSummary}
               />
-              <EventTimeline events={detail?.events ?? []} isLoading={detailLoading} />
+              <EventTimeline events={currentDetail?.events ?? []} isLoading={detailLoading} />
             </div>
           </div>
         ) : null}
