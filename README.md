@@ -4,9 +4,18 @@
 
 ## Статус
 
-Текущая стадия: `Idea / Product Definition`.
+Текущая стадия: `Foundation accepted → Persistence foundation next`.
 
-На этой стадии создаётся и принимается проектная документация. Прикладной код ещё не разрабатывается.
+Технический фундамент принят и объединён в `main` через PR #1. В репозитории уже работают:
+
+- pnpm workspace;
+- React + TypeScript + Vite web app;
+- Node.js + TypeScript + Fastify API;
+- `/health` endpoint;
+- shared и domain packages;
+- начальная shipment workflow state machine с тестами;
+- PostgreSQL Docker Compose для локальной разработки;
+- lint, typecheck, tests, build и GitHub Actions CI.
 
 ## Что создаём
 
@@ -30,11 +39,19 @@
 - коммерческая страница: отдельный маршрут на `stalarvision.ru`;
 - демоверсия: отдельный поддомен, предварительно `etrn-flow.stalarvision.ru`.
 
-## Ориентир по срокам
+## Локальные команды
 
-Рекомендуемый срок до первой адекватной публичной версии: **5–7 календарных недель** после принятия документации и архитектуры.
-
-Минимальный демонстрационный релиз может быть выпущен быстрее, но ускорение не должно разрушать возможность последующего развития проекта.
+```bash
+make install
+make dev
+make test
+make lint
+make typecheck
+make build
+make check
+make db-up
+make db-down
+```
 
 ## Project Brain
 
@@ -55,8 +72,11 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-1. Проверить и принять документацию.
-2. Инициализировать Git.
-3. Создать приватный GitHub-репозиторий.
-4. Выполнить первый документальный commit и push.
-5. Перейти к архитектурному Plan технического фундамента.
+Следующая контролируемая стадия — persistence foundation:
+
+- подключить Drizzle ORM и PostgreSQL driver;
+- описать минимальную schema для guest sessions, shipments и events;
+- создать первую migration;
+- добавить repository interfaces и PostgreSQL implementations;
+- доказать persistence integration tests;
+- не переходить пока к guest-session HTTP flow, seed/reset API или продуктовой UI.
