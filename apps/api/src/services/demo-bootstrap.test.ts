@@ -11,6 +11,30 @@ import { DemoBootstrapService, demoShipmentDefinitions } from "./demo-bootstrap.
 import type { PostgresRepositories } from "../persistence/postgres/repositories.js";
 
 describe("DemoBootstrapService", () => {
+  it("keeps demo definitions structurally coherent", () => {
+    expect(demoShipmentDefinitions.map((definition) => definition.reference)).toEqual([
+      "DEMO-001",
+      "DEMO-002",
+      "DEMO-003"
+    ]);
+    expect(demoShipmentDefinitions.map((definition) => definition.state)).toEqual([
+      "awaiting_loading",
+      "in_transit",
+      "completed"
+    ]);
+
+    for (const definition of demoShipmentDefinitions) {
+      expect(definition.events[0]?.previousState).toBe("draft");
+      expect(definition.events.at(-1)?.nextState).toBe(definition.state);
+
+      for (let index = 0; index < definition.events.length - 1; index += 1) {
+        expect(definition.events[index]?.nextState).toBe(
+          definition.events[index + 1]?.previousState
+        );
+      }
+    }
+  });
+
   it("creates exactly three deterministic shipments for an empty session", async () => {
     const repositories = createRepositoryStub();
     const service = new DemoBootstrapService(repositories);

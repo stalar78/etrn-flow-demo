@@ -26,7 +26,7 @@ export const demoShipmentDefinitions = [
         eventType: "shipment_created",
         actorRole: "dispatcher",
         previousState: "draft",
-        nextState: "draft",
+        nextState: "ready_for_dispatch",
         payload: { scenario: "early-stage" }
       },
       {
@@ -46,8 +46,22 @@ export const demoShipmentDefinitions = [
         eventType: "shipment_created",
         actorRole: "dispatcher",
         previousState: "draft",
-        nextState: "draft",
+        nextState: "ready_for_dispatch",
         payload: { scenario: "in-transit" }
+      },
+      {
+        eventType: "dispatch",
+        actorRole: "dispatcher",
+        previousState: "ready_for_dispatch",
+        nextState: "awaiting_loading",
+        payload: {}
+      },
+      {
+        eventType: "mark_vehicle_arrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading",
+        payload: {}
       },
       {
         eventType: "complete_loading",
@@ -66,8 +80,50 @@ export const demoShipmentDefinitions = [
         eventType: "shipment_created",
         actorRole: "dispatcher",
         previousState: "draft",
-        nextState: "draft",
+        nextState: "ready_for_dispatch",
         payload: { scenario: "completed" }
+      },
+      {
+        eventType: "dispatch",
+        actorRole: "dispatcher",
+        previousState: "ready_for_dispatch",
+        nextState: "awaiting_loading",
+        payload: {}
+      },
+      {
+        eventType: "mark_vehicle_arrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading",
+        payload: {}
+      },
+      {
+        eventType: "complete_loading",
+        actorRole: "warehouse",
+        previousState: "loading",
+        nextState: "in_transit",
+        payload: {}
+      },
+      {
+        eventType: "arrive_for_unloading",
+        actorRole: "driver",
+        previousState: "in_transit",
+        nextState: "awaiting_unloading",
+        payload: {}
+      },
+      {
+        eventType: "start_unloading",
+        actorRole: "warehouse",
+        previousState: "awaiting_unloading",
+        nextState: "unloading",
+        payload: {}
+      },
+      {
+        eventType: "complete_unloading",
+        actorRole: "warehouse",
+        previousState: "unloading",
+        nextState: "awaiting_confirmation",
+        payload: {}
       },
       {
         eventType: "complete_shipment",

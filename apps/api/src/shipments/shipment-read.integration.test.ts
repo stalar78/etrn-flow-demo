@@ -59,7 +59,7 @@ describe("shipment read API", () => {
     const session = await app.inject({ method: "GET", url: "/api/session" });
     const cookie = session.cookies[0];
 
-    await Promise.all([
+    const responses = await Promise.all([
       app.inject({
         method: "POST",
         url: "/api/demo/bootstrap",
@@ -79,7 +79,14 @@ describe("shipment read API", () => {
     });
     await app.close();
 
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200]);
+    expect(responses.map((response) => response.json().demo.shipmentCount)).toEqual([3, 3]);
+    expect(responses.map((response) => response.json().demo.created).sort()).toEqual([
+      false,
+      true
+    ]);
     expect(list.json().shipments).toHaveLength(3);
+    expect(new Set(list.json().shipments.map((shipment: { reference: string }) => shipment.reference)).size).toBe(3);
   });
 
   it("isolates bootstrapped datasets by guest session", async () => {
