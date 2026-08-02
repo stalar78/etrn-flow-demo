@@ -4,7 +4,7 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Architecture accepted; first Build stage pending
+- Current stage: Stage 06 accepted; workflow transition API next
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
@@ -66,7 +66,34 @@
 - полноценная TMS;
 - production multi-tenancy для клиентов.
 
-## 6. Architecture overview
+## 6. Implemented baseline
+
+Accepted and merged into `main`:
+
+- Stage 03 — workspace and application foundation;
+- Stage 04 — PostgreSQL and Drizzle persistence foundation;
+- Stage 05 — anonymous guest-session foundation;
+- Stage 06 — session-scoped shipment read API and deterministic demo bootstrap.
+
+Current backend capabilities:
+
+- validated database and session configuration;
+- PostgreSQL migrations and scoped repositories;
+- append-only shipment events with deterministic sequence ordering;
+- backend-issued httpOnly guest-session cookie;
+- session replacement for missing, invalid, unknown and expired sessions;
+- `/health` isolated from session and database work;
+- `GET /api/session`;
+- `POST /api/demo/bootstrap`;
+- `GET /api/shipments`;
+- `GET /api/shipments/:shipmentId`;
+- transactionally safe and concurrent-idempotent demo bootstrap;
+- three synthetic shipments with coherent event histories;
+- strict guest-session data isolation;
+- controlled `400`, `404` and `503` responses;
+- PostgreSQL-backed integration coverage in CI.
+
+## 7. Architecture overview
 
 ```text
 Browser
@@ -93,25 +120,25 @@ infra/
 
 The system remains a modular monolith. Real external integration must be introduced later through a replaceable adapter contract, without coupling domain workflow to a specific operator SDK.
 
-## 7. Core modules
+## 8. Core modules
 
-| Module | Responsibility | MVP notes |
+| Module | Responsibility | Current status |
 |---|---|---|
-| Demo access | Guest session, isolation, quotas, expiry and reset | No production registration |
-| Organizations | Synthetic transport participants | Minimal fields only |
-| Drivers | Driver assignment and demo actions | No sensitive documents |
-| Vehicles | Vehicle assignment | No GPS, maintenance or fleet management |
-| Shipments | Main aggregate | Route, participants, state and deadlines |
-| Cargo | Simplified cargo details | No product certification model |
-| Workflow | Explicit states, named actions and role checks | No generic workflow engine |
-| Demo documents | Visual process representation | No legal force |
-| Events | Append-only action history | Used by UI and demo audit trail |
-| Attention center | Delays, discrepancies and failures | Added after core slice |
-| Notifications | Internal reminder simulation | No external delivery in initial MVP |
-| Analytics | Product funnel events | No personal data |
-| Integration adapters | Mock now, operator-specific later | Isolated boundary |
+| Demo access | Guest session, isolation, quotas, expiry and reset | Session lifecycle implemented; quotas/reset/cleanup pending |
+| Organizations | Synthetic transport participants | Pending |
+| Drivers | Driver assignment and demo actions | Pending |
+| Vehicles | Vehicle assignment | Pending |
+| Shipments | Main aggregate | Persistence, bootstrap and read API implemented |
+| Cargo | Simplified cargo details | Pending |
+| Workflow | Explicit states, named actions and role checks | Domain rules exist; HTTP transition slice pending |
+| Demo documents | Visual process representation | Pending; no legal force |
+| Events | Append-only action history | Persistence and read path implemented |
+| Attention center | Delays, discrepancies and failures | Later stage |
+| Notifications | Internal reminder simulation | Later stage |
+| Analytics | Product funnel events | Before public launch |
+| Integration adapters | Mock now, operator-specific later | Pending |
 
-## 8. Data flow
+## 9. Data flow
 
 ```text
 User action
@@ -129,7 +156,7 @@ User action
 
 Direct status editing is forbidden. State changes occur only through approved domain actions.
 
-## 9. External integrations
+## 10. External integrations
 
 | Integration | MVP | Future | Risk |
 |---|---:|---:|---|
@@ -139,19 +166,28 @@ Direct status editing is forbidden. State changes occur only through approved do
 | Yandex Metrica | Yes before public launch | Yes | Do not send personal data |
 | Email / Telegram | Internal imitation | Optional | Consent, rate limits, secrets |
 
-## 10. Guest session model
+## 11. Guest session model
 
-- Entry without registration.
-- Backend-issued httpOnly cookie.
-- Every mutable record belongs to one guest session.
-- API always scopes reads and writes by that session.
-- Recommended TTL: 24 hours.
-- Quotas apply to shipments, events and actions.
-- Reset recreates the guest workspace.
-- Expired sessions are removed by cleanup logic.
-- Demo role switching is a presentation feature, not production RBAC.
+Implemented:
 
-## 11. AI-agent workflow
+- entry without registration;
+- backend-issued httpOnly cookie;
+- all shipment reads scoped by guest session;
+- default TTL of 24 hours;
+- invalid, missing, unknown and expired session replacement;
+- production-aware `Secure` cookie behavior;
+- controlled persistence failure handling.
+
+Pending:
+
+- quotas for shipments, events and actions;
+- reset endpoint;
+- cleanup of expired sessions;
+- public rate limiting.
+
+Demo role switching remains a presentation feature, not production RBAC.
+
+## 12. AI-agent workflow
 
 - GPT: product and technical architect, reviewer, keeper of scope and documentation.
 - Codex: implementation of approved code and technical configuration only.
@@ -165,34 +201,42 @@ Rules:
 - Codex does not modify project documentation unless explicitly authorized for a narrow technical reason.
 - Codex does not commit, push or deploy unless separately authorized.
 
-## 12. Security model
+## 13. Security model
 
 - Synthetic demo data only.
 - No real signatures, certificates or legal documents.
 - No file uploads in the first MVP.
 - Secrets only through environment configuration outside Git.
 - Server-side validation with Zod.
-- Session isolation and quotas.
-- Rate limiting for public endpoints.
+- Session isolation enforced in database queries.
 - Production cookies use `httpOnly`, `Secure` and appropriate `SameSite` settings.
-- CORS is restricted to the frontend origin.
+- CORS will be restricted to the frontend origin before deployment.
 - Logs exclude personal and sensitive data.
 - Production deployment remains manual in the first release cycle.
 
-## 13. Testing baseline
+## 14. Testing baseline
 
-Required before first deployment:
+Already covered:
 
-- workflow transition unit tests;
-- role-action unit tests;
-- API integration tests for guest session, shipment read, transition, event append and reset;
+- workflow domain unit tests;
+- persistence integration tests;
+- guest-session unit and PostgreSQL integration tests;
+- demo bootstrap unit tests;
+- shipment read and session-isolation integration tests;
+- migration checks, lint, typecheck, tests and production build in CI.
+
+Still required before first deployment:
+
+- workflow transition API unit and integration tests;
+- role/action denial tests at the HTTP boundary;
+- reset and quota integration tests;
 - key frontend component tests;
 - one end-to-end happy path;
-- lint, typecheck and production build.
+- security and deployment audit.
 
-## 14. Commands
+## 15. Commands
 
-The Makefile is created in the first Build stage and must wrap only real package scripts:
+The Makefile wraps real package scripts:
 
 ```bash
 make install
@@ -203,7 +247,9 @@ make typecheck
 make build
 ```
 
-## 15. Documentation map
+Database and integration validation are also available through workspace scripts and CI.
+
+## 16. Documentation map
 
 | File / folder | Purpose |
 |---|---|
@@ -221,7 +267,7 @@ make build
 | `.plans/` | Accepted stage plans |
 | `.security/` | Operational security memory |
 
-## 16. Key decisions
+## 17. Key decisions
 
 | Date | Decision | Reason |
 |---|---|---|
@@ -232,9 +278,11 @@ make build
 | 2026-08-02 | Use a modular monolith | Strong boundaries without distributed-system overhead |
 | 2026-08-02 | Use React/Vite + Fastify + PostgreSQL/Drizzle | Practical full-stack proof for one developer |
 | 2026-08-02 | Use explicit workflow actions | Prevent invalid arbitrary status changes |
+| 2026-08-02 | Scope all shipment access by guest session in SQL | Prevent cross-session disclosure |
+| 2026-08-02 | Use deterministic, transactionally safe demo bootstrap | Reliable public demo behavior under retries and concurrency |
 | 2026-08-02 | GPT owns documentation updates | Keep Codex focused on implementation and reduce context cost |
 
-## 17. Main risks
+## 18. Main risks
 
 | Risk | Impact | Mitigation |
 |---|---|---|
@@ -243,16 +291,30 @@ make build
 | Demo looks like static mockup | Weak trust | Full vertical slice with API, persistence and events |
 | Unverified legal detail | Misleading content | Separate product workflow from legal EPD specification |
 | Public abuse | Cost and instability | Rate limits, session quotas, reset, expiry and synthetic data |
+| Invalid state mutation | Corrupted demo history | Named actions, guarded persistence and append-only events |
 | No demand after advertising | Lost time | Launch minimally, measure and refine |
 
-## 18. Delivery estimate
+## 19. Delivery estimate
 
-- Foundation: 4–6 working days.
-- First vertical slice: 3–5 working days after foundation.
-- Minimum public MVP: 18–26 working days after foundation.
-- Hardening and deployment: 5–8 working days.
-- Overall target remains 5–7 calendar weeks if scope remains controlled.
+- Foundation and persistence baseline: accepted.
+- Guest-session and shipment-read baseline: accepted.
+- Workflow transition backend slice: next controlled stage.
+- Frontend vertical slice follows after transition behavior is proven.
+- Minimum public MVP target remains 5–7 calendar weeks if scope remains controlled.
 
-## 19. Current next step
+## 20. Current next step
 
-Prepare and execute the first Build-stage Codex task for the technical foundation. The first implementation must not attempt the whole MVP. It should create the workspace, real commands, web/API skeleton, core workflow package and tests needed for the subsequent vertical slice.
+Implement the first workflow transition API slice.
+
+The stage must:
+
+- expose one controlled shipment action endpoint;
+- use the existing framework-independent workflow domain rules;
+- derive guest-session ownership from the resolved server session;
+- validate actor role and current state;
+- update shipment state with optimistic guarding;
+- append the matching event in the same database transaction;
+- return controlled conflict/forbidden/not-found responses;
+- preserve append-only event history and session isolation;
+- include unit and PostgreSQL-backed API integration tests;
+- avoid frontend work, arbitrary status editing, generic workflow engines and real operator integration.
