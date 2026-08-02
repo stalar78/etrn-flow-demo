@@ -13,7 +13,13 @@ import {
 import { createPostgresRepositories } from "./persistence/postgres/repositories.js";
 import { DemoBootstrapService } from "./services/demo-bootstrap.js";
 import { GuestSessionService, type Clock } from "./services/guest-session.js";
-import type { ShipmentEventRecord, ShipmentRecord } from "@etrn-flow/domain";
+import { ShipmentTransitionService } from "./services/shipment-transition.js";
+import {
+  shipmentWorkflowActions,
+  type ShipmentEventRecord,
+  type ShipmentRecord
+} from "@etrn-flow/domain";
+import { demoRoles } from "@etrn-flow/shared";
 
 export type AppOptions = {
   enableGuestSessions?: boolean;
@@ -61,6 +67,7 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
       options.clock
     );
     const demoBootstrapService = new DemoBootstrapService(repositories);
+    const shipmentTransitionService = new ShipmentTransitionService(repositories);
 
     app.addHook("onClose", async () => {
       if (!options.database) {
@@ -193,6 +200,63 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
         });
       }
     });
+
+    app.post("/api/shipments/:shipmentId/actions", { preHandler: resolveGuestSession }, async (request, reply) => {
+      const parsedParams = shipmentParamsSchema.safeParse(request.params);
+
+      if (!parsedParams.success) {
+        return reply.code(400).send({
+          error: "invalid_shipment_id"
+        });
+      }
+
+      const parsedBody = shipmentActionBodySchema.safeParse(request.body);
+
+      if (!parsedBody.success) {
+        return reply.code(400).send({
+          error: "invalid_transition_request"
+        });
+      }
+
+      try {
+        const result = await shipmentTransitionService.execute({
+          guestSessionId: requireGuestSession(request).id,
+          shipmentId: parsedParams.data.shipmentId,
+          action: parsedBody.data.action,
+          actorRole: parsedBody.data.actorRole
+        });
+
+        switch (result.kind) {
+          case "success":
+            return {
+              transition: result.transition,
+              event: toShipmentEventDto(result.event)
+            };
+          case "not_found":
+            return reply.code(404).send({
+              error: "shipment_not_found"
+            });
+          case "forbidden":
+            return reply.code(403).send({
+              error: "transition_forbidden"
+            });
+          case "invalid_transition":
+            return reply.code(409).send({
+              error: "invalid_transition"
+            });
+          case "conflict":
+            return reply.code(409).send({
+              error: "transition_conflict"
+            });
+        }
+      } catch (error) {
+        request.log.error({ error }, "Failed to execute shipment transition");
+
+        return reply.code(503).send({
+          error: "transition_unavailable"
+        });
+      }
+    });
   }
 
   return app;
@@ -205,6 +269,11 @@ function isSessionCookieValue(value: string | undefined): value is string {
 const shipmentParamsSchema = z.object({
   shipmentId: z.string().uuid()
 });
+
+const shipmentActionBodySchema = z.object({
+  action: z.enum(shipmentWorkflowActions),
+  actorRole: z.enum(demoRoles)
+}).strict();
 
 function requireGuestSession(request: FastifyRequest) {
   if (!request.guestSession) {
