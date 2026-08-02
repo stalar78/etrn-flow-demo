@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "types": ["node", "vitest"],
+    "paths": {
+      "@etrn-flow/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

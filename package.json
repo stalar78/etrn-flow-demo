@@ -1,0 +1,29 @@
+{
+  "name": "etrn-flow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter @etrn-flow/web --filter @etrn-flow/api dev",
+    "dev:web": "corepack pnpm --filter @etrn-flow/web dev",
+    "dev:api": "corepack pnpm --filter @etrn-flow/api dev",
+    "lint": "eslint .",
+    "typecheck": "corepack pnpm --recursive typecheck",
+    "test": "corepack pnpm --recursive test",
+    "build": "corepack pnpm --recursive build",
+    "check": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "eslint": "^9.18.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8"
+  }
+}
