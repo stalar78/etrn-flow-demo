@@ -19,6 +19,7 @@ import { Notice } from "./components/Notice";
 import { ShipmentDetail } from "./components/ShipmentDetail";
 import { ShipmentList } from "./components/ShipmentList";
 import { WorkflowActions } from "./components/WorkflowActions";
+import { WorkflowProgress } from "./components/WorkflowProgress";
 import { apiErrorMessages } from "./presentation/workflow-labels";
 
 type WorkspacePhase =
@@ -37,10 +38,12 @@ export function App() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success" | "info"; text: string } | null>(null);
   const [phase, setPhase] = useState<WorkspacePhase>("initializing");
+  const [confirmationAction, setConfirmationAction] = useState<ShipmentWorkflowAction | null>(null);
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(null);
   const [shipments, setShipments] = useState<ShipmentSummary[]>([]);
   const detailRequestRef = useRef(0);
   const selectedShipmentIdRef = useRef<string | null>(null);
+  const transitionInFlightRef = useRef(false);
 
   const setSelectedShipment = useCallback((shipmentId: string | null) => {
     selectedShipmentIdRef.current = shipmentId;
@@ -85,6 +88,7 @@ export function App() {
     setPhase("initializing");
     setDetail(null);
     setShipments([]);
+    setConfirmationAction(null);
     setSelectedShipment(null);
 
     try {
@@ -147,6 +151,7 @@ export function App() {
     }
 
     setSelectedShipment(shipmentId);
+    setConfirmationAction(null);
     setMessage(null);
     await loadDetail(shipmentId);
     setPhase("ready");
@@ -156,13 +161,15 @@ export function App() {
     action: ShipmentWorkflowAction;
     actorRole: ActorRole;
   }) {
-    if (!selectedShipmentId) {
+    if (!selectedShipmentId || transitionInFlightRef.current) {
       return;
     }
 
     const transitionShipmentId = selectedShipmentId;
 
+    transitionInFlightRef.current = true;
     setPhase("transitioning");
+    setConfirmationAction(null);
     setMessage(null);
 
     try {
@@ -178,7 +185,10 @@ export function App() {
         return;
       }
 
-      if (error instanceof EtrnFlowApiError && error.code === "transition_conflict") {
+      if (
+        error instanceof EtrnFlowApiError
+        && (error.code === "transition_conflict" || error.code === "invalid_transition")
+      ) {
         await refreshWorkspace(transitionShipmentId);
       }
 
@@ -187,6 +197,8 @@ export function App() {
         tone: "error",
         text: toRussianErrorMessage(error)
       });
+    } finally {
+      transitionInFlightRef.current = false;
     }
   }
 
@@ -235,9 +247,12 @@ export function App() {
 
             <div className="detail-column">
               <ShipmentDetail isLoading={detailLoading} shipment={selectedSummary} />
+              <WorkflowProgress state={selectedSummary?.state ?? null} />
               <WorkflowActions
+                confirmationAction={confirmationAction}
                 isTransitioning={phase === "transitioning"}
                 onExecute={(input) => void handleExecuteAction(input)}
+                onRequestConfirmation={setConfirmationAction}
                 shipment={selectedSummary}
               />
               <EventTimeline events={currentDetail?.events ?? []} isLoading={detailLoading} />
