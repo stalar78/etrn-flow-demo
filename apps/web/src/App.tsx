@@ -182,20 +182,32 @@ export function App() {
       });
     } catch (error) {
       if (isAbortError(error)) {
+        setPhase("ready");
         return;
       }
+
+      let displayError = error;
 
       if (
         error instanceof EtrnFlowApiError
         && (error.code === "transition_conflict" || error.code === "invalid_transition")
       ) {
-        await refreshWorkspace(transitionShipmentId);
+        try {
+          await refreshWorkspace(transitionShipmentId);
+        } catch (refreshError) {
+          if (isAbortError(refreshError)) {
+            setPhase("ready");
+            return;
+          }
+
+          displayError = refreshError;
+        }
       }
 
       setPhase("recoverable_error");
       setMessage({
         tone: "error",
-        text: toRussianErrorMessage(error)
+        text: toRussianErrorMessage(displayError)
       });
     } finally {
       transitionInFlightRef.current = false;

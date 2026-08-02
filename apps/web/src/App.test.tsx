@@ -405,6 +405,56 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeInTheDocument();
   });
 
+  it("exits transitioning and restores controls when conflict recovery refresh fails", async () => {
+    mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("transition_conflict"));
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockRejectedValueOnce(new EtrnFlowApiError("shipment_list_unavailable"));
+    mockedApi.getShipmentDetail.mockResolvedValueOnce(detailFor("shipment-1"));
+
+    render(<App />);
+
+    const action = await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i });
+    fireEvent.click(action);
+
+    await screen.findByText("Не удалось загрузить список перевозок.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-002/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getAllByText("Ожидает прибытия на погрузку").length).toBeGreaterThan(0);
+  });
+
+  it("exits transitioning and restores controls when invalid-transition recovery refresh fails", async () => {
+    mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("invalid_transition"));
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockRejectedValueOnce(new EtrnFlowApiError("shipment_list_unavailable"));
+    mockedApi.getShipmentDetail.mockResolvedValueOnce(detailFor("shipment-1"));
+
+    render(<App />);
+
+    const action = await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i });
+    fireEvent.click(action);
+
+    await screen.findByText("Не удалось загрузить список перевозок.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-002/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getAllByText("Ожидает прибытия на погрузку").length).toBeGreaterThan(0);
+  });
+
   it("ignores a stale transition-conflict refresh detail that does not match the selected shipment", async () => {
     mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("transition_conflict"));
     mockedApi.listShipments
