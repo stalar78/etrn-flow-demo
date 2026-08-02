@@ -283,36 +283,112 @@ dd {
   padding: 0 var(--space-4) var(--space-4);
 }
 
+.action-card {
+  display: grid;
+  gap: var(--space-2);
+}
+
 .primary-action,
+.danger-action,
 .secondary-action {
   border: 0;
   border-radius: var(--radius-md);
   font-weight: 800;
 }
 
-.primary-action {
+.primary-action,
+.danger-action {
   display: grid;
   gap: 0.25rem;
   justify-items: start;
+  width: 100%;
   padding: var(--space-3) var(--space-4);
   background: var(--color-accent);
   color: white;
 }
 
-.primary-action:disabled {
+.danger-action {
+  border: 1px solid rgb(157 45 34 / 28%);
+  background: #fff1ec;
+  color: var(--color-error);
+}
+
+.primary-action:disabled,
+.danger-action:disabled {
   cursor: wait;
   opacity: 0.65;
 }
 
-.primary-action small {
+.primary-action small,
+.danger-action small {
   color: rgb(255 255 255 / 78%);
   font-weight: 600;
+}
+
+.danger-action small {
+  color: rgb(157 45 34 / 76%);
+}
+
+.action-description,
+.confirmation-note p {
+  margin-bottom: 0;
+  color: var(--color-muted);
+  font-size: 0.92rem;
+}
+
+.confirmation-note {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid rgb(157 45 34 / 24%);
+  border-radius: var(--radius-md);
+  background: #fff8f5;
 }
 
 .secondary-action {
   padding: var(--space-2) var(--space-3);
   background: var(--color-accent);
   color: white;
+}
+
+.progress-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  list-style: none;
+}
+
+.progress-step {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-height: 6rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #f8f4ec;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.progress-marker {
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.progress-step-completed {
+  color: var(--color-success);
+}
+
+.progress-step-current {
+  border-color: rgb(36 91 73 / 48%);
+  background: #eef3e8;
+  color: var(--color-accent-strong);
 }
 
 .timeline {
@@ -396,12 +472,14 @@ dd {
   }
 
   .detail-grid,
+  .progress-steps,
   .timeline-item {
     grid-template-columns: 1fr;
   }
 
   .panel-heading,
   .detail-grid,
+  .progress-steps,
   .action-stack,
   .timeline {
     padding-right: var(--space-3);

@@ -101,7 +101,7 @@ describe("App", () => {
     expect(screen.getByText("Подтвердить прибытие автомобиля")).toBeInTheDocument();
     expect(screen.queryByText("Завершить погрузку")).not.toBeInTheDocument();
 
-    const timelineItems = screen.getAllByRole("listitem");
+    const timelineItems = getTimelineItems();
     expect(within(timelineItems[0]).getByText("#1")).toBeInTheDocument();
     expect(within(timelineItems[1]).getByText("#2")).toBeInTheDocument();
   });
@@ -152,7 +152,164 @@ describe("App", () => {
       actorRole: "warehouse"
     });
     expect(screen.getAllByText("Погрузка").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Завершить погрузку/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+  });
+
+  it("executes a second sequential action and renders both new events in sequence order", async () => {
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })]
+      })
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })]
+      })
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "in_transit" })]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockResolvedValueOnce(detailFor("shipment-1", {
+        events: detailFor("shipment-1").events.concat(shipmentEvent({
+          id: "event-3",
+          sequence: 3,
+          eventType: "markVehicleArrived",
+          actorRole: "warehouse",
+          previousState: "awaiting_loading",
+          nextState: "loading"
+        })),
+        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })
+      }))
+      .mockResolvedValueOnce(detailFor("shipment-1", {
+        events: detailFor("shipment-1").events.concat(
+          shipmentEvent({
+            id: "event-3",
+            sequence: 3,
+            eventType: "markVehicleArrived",
+            actorRole: "warehouse",
+            previousState: "awaiting_loading",
+            nextState: "loading"
+          }),
+          shipmentEvent({
+            id: "event-4",
+            sequence: 4,
+            eventType: "completeLoading",
+            actorRole: "warehouse",
+            previousState: "loading",
+            nextState: "in_transit"
+          })
+        ),
+        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "in_transit" })
+      }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+    const secondAction = await screen.findByRole("button", { name: /Завершить погрузку/i });
+    fireEvent.click(secondAction);
+
+    await screen.findByText("Для этого этапа дальнейшего демонстрационного действия пока нет. История событий доступна ниже.");
+    expect(mockedApi.executeShipmentAction).toHaveBeenNthCalledWith(2, "shipment-1", {
+      action: "completeLoading",
+      actorRole: "warehouse"
+    });
+
+    const timelineItems = getTimelineItems();
+    expect(within(timelineItems[2]).getByText("#3")).toBeInTheDocument();
+    expect(within(timelineItems[3]).getByText("#4")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Завершить погрузку/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps action controls disabled until the refreshed state and next action are available", async () => {
+    const transition = deferred<Awaited<ReturnType<typeof api.executeShipmentAction>>>();
+    const refreshedList = deferred<Awaited<ReturnType<typeof api.listShipments>>>();
+    const refreshedDetail = deferred<Awaited<ReturnType<typeof api.getShipmentDetail>>>();
+
+    mockedApi.executeShipmentAction.mockReturnValueOnce(transition.promise);
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })]
+      })
+      .mockReturnValueOnce(refreshedList.promise);
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockReturnValueOnce(refreshedDetail.promise);
+
+    render(<App />);
+
+    const action = await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i });
+    fireEvent.click(action);
+
+    expect(action).toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toBeDisabled();
+
+    transition.resolve({
+      transition: {
+        shipmentId: "shipment-1",
+        action: "markVehicleArrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading"
+      },
+      event: shipmentEvent({
+        id: "event-3",
+        sequence: 3,
+        eventType: "markVehicleArrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading"
+      })
+    });
+    refreshedList.resolve({
+      shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })]
+    });
+
+    await waitFor(() => {
+      expect(action).toBeDisabled();
+      expect(screen.getByRole("button", { name: /DEMO-001/i })).toBeDisabled();
+    });
+
+    refreshedDetail.resolve(detailFor("shipment-1", {
+      shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })
+    }));
+
+    expect(await screen.findByRole("button", { name: /Завершить погрузку/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+  });
+
+  it("ignores double-submit attempts while a transition is already active", async () => {
+    const transition = deferred<Awaited<ReturnType<typeof api.executeShipmentAction>>>();
+    mockedApi.executeShipmentAction.mockReturnValueOnce(transition.promise);
+
+    render(<App />);
+
+    const action = await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i });
+    fireEvent.click(action);
+    fireEvent.click(action);
+
+    expect(mockedApi.executeShipmentAction).toHaveBeenCalledTimes(1);
+
+    transition.resolve({
+      transition: {
+        shipmentId: "shipment-1",
+        action: "markVehicleArrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading"
+      },
+      event: shipmentEvent({
+        id: "event-3",
+        sequence: 3,
+        eventType: "markVehicleArrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading"
+      })
+    });
+
+    await screen.findByText("Действие выполнено. Состояние и история обновлены.");
+    expect(mockedApi.executeShipmentAction).toHaveBeenCalledTimes(1);
   });
 
   it("keeps shipment selection locked while a transition is pending", async () => {
@@ -220,6 +377,82 @@ describe("App", () => {
 
     await screen.findByText("Состояние перевозки уже изменилось. Данные обновлены.");
     expect(screen.getAllByText("Погрузка").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Завершить погрузку/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeInTheDocument();
+  });
+
+  it("refreshes stale data after an invalid transition and recomputes available actions", async () => {
+    mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("invalid_transition"));
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })]
+      })
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockResolvedValueOnce(detailFor("shipment-1", {
+        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })
+      }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+
+    await screen.findByText("Это действие больше недоступно для текущего состояния перевозки.");
+    expect(screen.getByRole("button", { name: /Завершить погрузку/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeInTheDocument();
+  });
+
+  it("exits transitioning and restores controls when conflict recovery refresh fails", async () => {
+    mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("transition_conflict"));
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockRejectedValueOnce(new EtrnFlowApiError("shipment_list_unavailable"));
+    mockedApi.getShipmentDetail.mockResolvedValueOnce(detailFor("shipment-1"));
+
+    render(<App />);
+
+    const action = await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i });
+    fireEvent.click(action);
+
+    await screen.findByText("Не удалось загрузить список перевозок.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-002/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getAllByText("Ожидает прибытия на погрузку").length).toBeGreaterThan(0);
+  });
+
+  it("exits transitioning and restores controls when invalid-transition recovery refresh fails", async () => {
+    mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("invalid_transition"));
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockRejectedValueOnce(new EtrnFlowApiError("shipment_list_unavailable"));
+    mockedApi.getShipmentDetail.mockResolvedValueOnce(detailFor("shipment-1"));
+
+    render(<App />);
+
+    const action = await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i });
+    fireEvent.click(action);
+
+    await screen.findByText("Не удалось загрузить список перевозок.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-002/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getAllByText("Ожидает прибытия на погрузку").length).toBeGreaterThan(0);
   });
 
   it("ignores a stale transition-conflict refresh detail that does not match the selected shipment", async () => {
@@ -278,7 +511,82 @@ describe("App", () => {
     expect(screen.queryByText("DEMO-002")).toBeInTheDocument();
     expect(screen.getAllByText("Ожидает прибытия на погрузку").length).toBeGreaterThan(0);
   });
+
+  it("renders a terminal state without action buttons and with an informative progress state", async () => {
+    mockedApi.listShipments.mockResolvedValueOnce({
+      shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "completed" })]
+    });
+    mockedApi.getShipmentDetail.mockResolvedValueOnce(detailFor("shipment-1", {
+      shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "completed" })
+    }));
+
+    render(<App />);
+
+    await screen.findByText("Перевозка завершена. История событий доступна ниже.");
+    expect(screen.getByText("Завершение: Завершено — состояние вне основной демонстрационной цепочки.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Завершить погрузку/i })).not.toBeInTheDocument();
+  });
+
+  it("marks the current workflow step in text and updates progress after a transition", async () => {
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })]
+      })
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockResolvedValueOnce(detailFor("shipment-1", {
+        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })
+      }));
+
+    render(<App />);
+
+    expect(await screen.findByText("Ожидает прибытия на погрузку — текущий этап")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+
+    expect(await screen.findByText("Погрузка — текущий этап")).toBeInTheDocument();
+    expect(screen.getByText("Ожидает прибытия на погрузку — пройдено")).toBeInTheDocument();
+  });
+
+  it("requires confirmation before executing the draft cancellation action", async () => {
+    mockedApi.listShipments.mockResolvedValueOnce({
+      shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "draft" })]
+    });
+    mockedApi.getShipmentDetail.mockResolvedValueOnce(detailFor("shipment-1", {
+      shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "draft" })
+    }));
+
+    render(<App />);
+
+    const cancelAction = await screen.findByRole("button", { name: /Отменить перевозку/i });
+    expect(screen.getByRole("button", { name: /Подготовить к отправке/i })).toBeInTheDocument();
+    fireEvent.click(cancelAction);
+
+    expect(mockedApi.executeShipmentAction).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Это изменит только синтетические демо-данные.");
+
+    fireEvent.click(cancelAction);
+    expect(mockedApi.executeShipmentAction).toHaveBeenCalledWith("shipment-1", {
+      action: "cancel",
+      actorRole: "dispatcher"
+    });
+    await screen.findByText("Действие выполнено. Состояние и история обновлены.");
+  });
 });
+
+function getTimelineItems() {
+  const timelineHeading = screen.getByRole("heading", { name: "События перевозки" });
+  const timelineSection = timelineHeading.closest("section");
+
+  if (!timelineSection) {
+    throw new Error("Timeline section was not rendered.");
+  }
+
+  return within(timelineSection).getAllByRole("listitem");
+}
 
 function shipmentSummary(overrides: Partial<ShipmentDetailResponse["shipment"]> = {}) {
   return {

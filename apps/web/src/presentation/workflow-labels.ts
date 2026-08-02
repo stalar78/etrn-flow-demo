@@ -52,22 +52,61 @@ export const eventTypeLabels: Record<string, string> = {
 export type WorkflowActionOption = {
   action: ShipmentWorkflowAction;
   actorRole: ActorRole;
+  description?: string;
   label: string;
   roleLabel: string;
+  tone?: "primary" | "secondary" | "danger";
 };
 
 export const workflowActionsByState: Record<ShipmentState, WorkflowActionOption[]> = {
-  draft: [],
-  ready_for_dispatch: [],
+  draft: [
+    {
+      action: "prepareDispatch",
+      actorRole: "dispatcher",
+      description: "Переводит демо-перевозку в состояние готовности к отправке.",
+      label: actionLabels.prepareDispatch,
+      roleLabel: actorRoleLabels.dispatcher,
+      tone: "primary"
+    },
+    {
+      action: "cancel",
+      actorRole: "dispatcher",
+      description: "Отменяет только эти синтетические демо-данные.",
+      label: actionLabels.cancel,
+      roleLabel: actorRoleLabels.dispatcher,
+      tone: "danger"
+    }
+  ],
+  ready_for_dispatch: [
+    {
+      action: "dispatch",
+      actorRole: "dispatcher",
+      description: "Фиксирует готовность к прибытию на погрузку.",
+      label: actionLabels.dispatch,
+      roleLabel: actorRoleLabels.dispatcher,
+      tone: "primary"
+    }
+  ],
   awaiting_loading: [
     {
       action: "markVehicleArrived",
       actorRole: "warehouse",
+      description: "Подтверждает, что автомобиль готов к погрузке.",
       label: actionLabels.markVehicleArrived,
-      roleLabel: actorRoleLabels.warehouse
+      roleLabel: actorRoleLabels.warehouse,
+      tone: "primary"
     }
   ],
-  loading: [],
+  loading: [
+    {
+      action: "completeLoading",
+      actorRole: "warehouse",
+      description: "Закрывает этап погрузки и переводит перевозку в путь.",
+      label: actionLabels.completeLoading,
+      roleLabel: actorRoleLabels.warehouse,
+      tone: "primary"
+    }
+  ],
   in_transit: [],
   awaiting_unloading: [],
   unloading: [],
@@ -75,6 +114,34 @@ export const workflowActionsByState: Record<ShipmentState, WorkflowActionOption[
   completed: [],
   attention_required: [],
   cancelled: []
+};
+
+export const noActionMessages: Record<ShipmentState, string> = {
+  draft: "Для текущего состояния доступных демонстрационных действий нет.",
+  ready_for_dispatch: "Для текущего состояния доступных демонстрационных действий нет.",
+  awaiting_loading: "Для текущего состояния доступных демонстрационных действий нет.",
+  loading: "Для текущего состояния доступных демонстрационных действий нет.",
+  in_transit: "Для этого этапа дальнейшего демонстрационного действия пока нет. История событий доступна ниже.",
+  awaiting_unloading: "Для текущего состояния доступных демонстрационных действий нет.",
+  unloading: "Для текущего состояния доступных демонстрационных действий нет.",
+  awaiting_confirmation: "Для текущего состояния доступных демонстрационных действий нет.",
+  completed: "Перевозка завершена. История событий доступна ниже.",
+  attention_required: "Это состояние требует внимания. Доступных демонстрационных действий нет.",
+  cancelled: "Перевозка отменена. История событий доступна ниже."
+};
+
+export const happyPathStates: ShipmentState[] = [
+  "draft",
+  "ready_for_dispatch",
+  "awaiting_loading",
+  "loading",
+  "in_transit"
+];
+
+export const branchStateLabels: Partial<Record<ShipmentState, string>> = {
+  attention_required: "Исключение",
+  cancelled: "Отмена",
+  completed: "Завершение"
 };
 
 export const apiErrorMessages: Record<string, string> = {
