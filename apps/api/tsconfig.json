@@ -5,6 +5,7 @@
     "module": "NodeNext",
     "types": ["node", "vitest"],
     "paths": {
+      "@etrn-flow/domain": ["../../packages/domain/src/index.ts"],
       "@etrn-flow/shared": ["../../packages/shared/src/index.ts"]
     }
   },

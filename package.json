@@ -14,7 +14,12 @@
     "lint": "eslint .",
     "typecheck": "corepack pnpm --recursive typecheck",
     "test": "corepack pnpm --recursive test",
+    "test:unit": "corepack pnpm --recursive --if-present test:unit",
+    "test:integration": "corepack pnpm --filter @etrn-flow/api test:integration",
     "build": "corepack pnpm --recursive build",
+    "db:generate": "corepack pnpm --filter @etrn-flow/api db:generate",
+    "db:migrate": "corepack pnpm --filter @etrn-flow/api db:migrate",
+    "db:check": "corepack pnpm --filter @etrn-flow/api db:check",
     "check": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
   },
   "devDependencies": {

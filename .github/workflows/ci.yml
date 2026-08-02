@@ -12,6 +12,20 @@ jobs:
   checks:
     name: Checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: etrn_flow_test
+          POSTGRES_USER: etrn_flow_test
+          POSTGRES_PASSWORD: etrn_flow_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U etrn_flow_test -d etrn_flow_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -39,6 +53,16 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Apply database migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: postgres://etrn_flow_test:etrn_flow_test_password@127.0.0.1:5432/etrn_flow_test
+
+      - name: Persistence integration tests
+        run: pnpm test:integration
+        env:
+          DATABASE_URL: postgres://etrn_flow_test:etrn_flow_test_password@127.0.0.1:5432/etrn_flow_test
 
       - name: Build
         run: pnpm build
