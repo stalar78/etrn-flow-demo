@@ -43,10 +43,10 @@ describe("guest session API", () => {
     expect(response.cookies[0]).toMatchObject({
       name: "test_guest_session",
       httpOnly: true,
-      secure: false,
       sameSite: "Lax",
       path: "/"
     });
+    expect(response.cookies[0]?.secure).not.toBe(true);
   });
 
   it("reuses a valid session cookie", async () => {
