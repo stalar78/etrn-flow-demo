@@ -141,6 +141,251 @@ describe("shipment read API", () => {
     );
   });
 
+  it("executes a valid workflow transition and appends one ordered event", async () => {
+    const app = createTestApp();
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+    const before = await loadShipmentDetail(app, cookie, target.id);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const after = await loadShipmentDetail(app, cookie, target.id);
+    await app.close();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().transition).toEqual({
+      shipmentId: target.id,
+      action: "markVehicleArrived",
+      actorRole: "warehouse",
+      previousState: "awaiting_loading",
+      nextState: "loading"
+    });
+    expect(after.shipment.state).toBe("loading");
+    expect(after.events).toHaveLength(before.events.length + 1);
+    expect(after.events.at(-1)).toMatchObject({
+      eventType: "markVehicleArrived",
+      actorRole: "warehouse",
+      previousState: "awaiting_loading",
+      nextState: "loading"
+    });
+    expect(after.events.map((event: { sequence: number }) => event.sequence)).toEqual(
+      [...after.events.map((event: { sequence: number }) => event.sequence)].sort(
+        (left, right) => left - right
+      )
+    );
+  });
+
+  it("rejects repeated and forbidden workflow transitions", async () => {
+    const app = createTestApp();
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+
+    const wrongRole = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "driver"
+      }
+    });
+    const first = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const repeated = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    await app.close();
+
+    expect(wrongRole.statusCode).toBe(403);
+    expect(wrongRole.json()).toEqual({ error: "transition_forbidden" });
+    expect(first.statusCode).toBe(200);
+    expect(repeated.statusCode).toBe(409);
+    expect(repeated.json()).toEqual({ error: "invalid_transition" });
+  });
+
+  it("returns controlled errors for invalid transition requests and missing shipments", async () => {
+    const app = createTestApp();
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const malformedId = await app.inject({
+      method: "POST",
+      url: "/api/shipments/not-a-uuid/actions",
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const malformedBody = await app.inject({
+      method: "POST",
+      url: "/api/shipments/11111111-1111-4111-8111-111111111111/actions",
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "notAnAction",
+        actorRole: "warehouse"
+      }
+    });
+    const unknown = await app.inject({
+      method: "POST",
+      url: "/api/shipments/11111111-1111-4111-8111-111111111111/actions",
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    await app.close();
+
+    expect(malformedId.statusCode).toBe(400);
+    expect(malformedId.json()).toEqual({ error: "invalid_shipment_id" });
+    expect(malformedBody.statusCode).toBe(400);
+    expect(malformedBody.json()).toEqual({ error: "invalid_transition_request" });
+    expect(unknown.statusCode).toBe(404);
+    expect(unknown.json()).toEqual({ error: "shipment_not_found" });
+  });
+
+  it("does not allow one session to transition another session shipment", async () => {
+    const app = createTestApp();
+    const firstBootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const secondSession = await app.inject({ method: "GET", url: "/api/session" });
+    const firstCookie = firstBootstrap.cookies[0];
+    const secondCookie = secondSession.cookies[0];
+    const foreignShipment = await findShipmentByReference(app, firstCookie, "DEMO-001");
+
+    const foreign = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${foreignShipment.id}/actions`,
+      cookies: { [secondCookie.name]: secondCookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const unknown = await app.inject({
+      method: "POST",
+      url: "/api/shipments/11111111-1111-4111-8111-111111111111/actions",
+      cookies: { [secondCookie.name]: secondCookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    await app.close();
+
+    expect(foreign.statusCode).toBe(404);
+    expect(unknown.statusCode).toBe(404);
+    expect(foreign.json()).toEqual(unknown.json());
+  });
+
+  it("returns a controlled response for transition database failures", async () => {
+    const app = createTestApp({
+      database: {
+        db: {
+          insert() {
+            return {
+              values() {
+                return {
+                  returning: async () => [guestSessionRecord()]
+                };
+              }
+            };
+          },
+          select() {
+            throw new Error("simulated database failure");
+          },
+          update() {
+            throw new Error("simulated database failure");
+          },
+          transaction() {
+            throw new Error("simulated database failure");
+          }
+        } as never,
+        async close() {}
+      }
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/shipments/11111111-1111-4111-8111-111111111111/actions",
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    await app.close();
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "transition_unavailable" });
+  });
+
+  it("allows only one of two concurrent transitions from the same expected state", async () => {
+    const app = createTestApp();
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+    const before = await loadShipmentDetail(app, cookie, target.id);
+
+    const responses = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: `/api/shipments/${target.id}/actions`,
+        cookies: { [cookie.name]: cookie.value },
+        payload: {
+          action: "markVehicleArrived",
+          actorRole: "warehouse"
+        }
+      }),
+      app.inject({
+        method: "POST",
+        url: `/api/shipments/${target.id}/actions`,
+        cookies: { [cookie.name]: cookie.value },
+        payload: {
+          action: "markVehicleArrived",
+          actorRole: "warehouse"
+        }
+      })
+    ]);
+
+    const after = await loadShipmentDetail(app, cookie, target.id);
+    await app.close();
+
+    const success = responses.find((response) => response.statusCode === 200);
+    const conflict = responses.find((response) => response.statusCode === 409);
+
+    expect(success?.json().transition).toMatchObject({
+      shipmentId: target.id,
+      previousState: "awaiting_loading",
+      nextState: "loading"
+    });
+    expect(conflict?.json()).toEqual({ error: "transition_conflict" });
+    expect(
+      after.events.filter((event: { eventType: string }) => event.eventType === "markVehicleArrived")
+    ).toHaveLength(1);
+    expect(after.events).toHaveLength(before.events.length + 1);
+  });
+
   it("does not allow one session to open another session shipment", async () => {
     const app = createTestApp();
     const firstBootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
@@ -243,4 +488,54 @@ function createTestApp(options: { database?: AppOptions["database"] } = {}) {
       cookieSameSite: "lax"
     }
   });
+}
+
+async function findShipmentByReference(
+  app: ReturnType<typeof createTestApp>,
+  cookie: { name: string; value: string },
+  reference: string
+) {
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/shipments",
+    cookies: { [cookie.name]: cookie.value }
+  });
+
+  const shipment = response.json().shipments.find(
+    (item: { reference: string }) => item.reference === reference
+  );
+
+  if (!shipment) {
+    throw new Error(`Shipment ${reference} was not found in test dataset.`);
+  }
+
+  return shipment as { id: string; reference: string; state: string };
+}
+
+async function loadShipmentDetail(
+  app: ReturnType<typeof createTestApp>,
+  cookie: { name: string; value: string },
+  shipmentId: string
+) {
+  const response = await app.inject({
+    method: "GET",
+    url: `/api/shipments/${shipmentId}`,
+    cookies: { [cookie.name]: cookie.value }
+  });
+
+  return response.json() as {
+    shipment: { id: string; state: string };
+    events: Array<{ sequence: number; eventType: string }>;
+  };
+}
+
+function guestSessionRecord() {
+  const now = new Date("2026-08-02T10:00:00.000Z");
+
+  return {
+    id: "11111111-1111-4111-8111-111111111111",
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
+    lastSeenAt: now
+  };
 }
