@@ -4,7 +4,7 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stage 08 accepted; sequential workflow demo next
+- Current stage: Stage 09 accepted; repeatable demo reset/restart next
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
@@ -80,11 +80,12 @@ Merged into `main`:
 - Stage 05 — anonymous guest-session foundation;
 - Stage 06 — session-scoped shipment read API and deterministic demo bootstrap;
 - Stage 07 — transactionally safe shipment workflow transition API;
-- Stage 08 — first usable frontend vertical slice.
+- Stage 08 — first usable frontend vertical slice;
+- Stage 09 — sequential frontend workflow demo with recovery hardening.
 
-Latest accepted Stage 08 merge commit:
+Latest accepted Stage 09 merge commit:
 
-`b2a24bd4c305f305e2ac86958ef45ff2480836bd`
+`1b70452edb4e5305955d80409dc655a5e1d18702`
 
 ## 7. Current backend capabilities
 
@@ -115,11 +116,17 @@ Latest accepted Stage 08 merge commit:
 - responsive shipment list and detail layout;
 - Russian labels for states, roles, actions and events;
 - ordered event timeline;
-- one accepted action: `markVehicleArrived` by `warehouse`;
-- refresh of list and detail after server-confirmed transition;
-- controlled initialization and transition errors;
+- state-driven action availability for supported transitions;
+- sequential `DEMO-001` path: `awaiting_loading → loading → in_transit`;
+- supported draft actions: prepare for dispatch and confirmed cancellation;
+- compact workflow progress presentation;
+- separate terminal and exception-state presentation;
+- refresh of list and detail after every server-confirmed transition;
+- double-submit protection;
+- controlled initialization, transition and recovery-refresh errors;
 - stale detail and transition-refresh protection;
 - disabled shipment switching during transition;
+- restoration of controls after transition or recovery failure;
 - persistent synthetic-data disclaimer;
 - focused API-client and component tests.
 
@@ -182,12 +189,12 @@ Implemented:
 
 Pending before public launch:
 
+- controlled reset/restart endpoint;
 - quotas for shipments, events and actions;
-- reset endpoint;
 - cleanup of expired sessions;
 - public rate limiting.
 
-Demo role switching remains a presentation feature, not production RBAC.
+Demo role presentation remains a frontend feature, not production RBAC.
 
 ## 12. Security model
 
@@ -225,15 +232,21 @@ Accepted coverage includes:
 - transition success, denial, isolation and concurrency conflict;
 - API-client response parsing and safe payload construction;
 - frontend initialization, selection, timeline and action execution;
+- sequential action availability and second-step execution;
+- confirmed destructive cancellation;
+- progress, terminal and exception-state presentation;
+- double-submit protection;
 - stale normal-detail response protection;
-- stale transition and conflict-refresh protection.
+- stale transition and conflict-refresh protection;
+- recovery-refresh failure handling with restored controls.
 
 Still required before first deployment:
 
 - reset and quota integration tests;
 - one browser-level end-to-end happy path;
 - production security and deployment audit;
-- public abuse controls.
+- public abuse controls;
+- stabilization of the existing concurrency integration assertion so both valid race outcomes are handled deterministically.
 
 ## 14. AI-agent workflow
 
@@ -260,29 +273,33 @@ Rules:
 | Invalid state mutation | Corrupted demo history | Named actions, guarded persistence and append-only events |
 | Frontend stale-response mismatch | Misleading UI | Shared request-version guard and selection invariant |
 | Demo cannot be repeated | Weak public experience | Controlled reset/restart stage before deployment |
+| Flaky concurrency test | Unreliable CI signal | Stabilize expected race outcomes without weakening backend guarantees |
 | No demand after advertising | Lost time | Launch minimally, measure and refine |
 
 ## 16. Delivery estimate
 
-Current estimate after Stage 08:
+Current estimate after Stage 09:
 
-- technical demo MVP: approximately 65–70% complete;
-- credible public portfolio demo: approximately 50–60% complete;
-- working public demo MVP: about 3–5 focused working days if scope remains controlled;
-- polished portfolio release: about 6–10 focused working days;
+- technical demo MVP: approximately 72–78% complete;
+- credible public portfolio demo: approximately 58–65% complete;
+- working public demo MVP: about 2–4 focused working days if scope remains controlled;
+- polished portfolio release: about 5–8 focused working days;
 - real customer pilot remains a separate 3–6 week effort depending on authentication, integrations and operational requirements.
 
 ## 17. Current next step
 
-Stage 09: extend the current frontend/backend workflow slice into a short sequential demo journey without inventing new business rules.
+Stage 10: add a controlled repeatable demo reset/restart flow.
 
 The stage should:
 
-- inspect the existing domain transition table and expose only already-supported actions;
-- allow the selected demo shipment to advance through multiple accepted states;
-- keep action and role values exact and server-validated;
-- preserve transaction, event and guest-session invariants;
-- update list, detail, timeline and available actions after every transition;
-- retain stale-response protection;
-- remain a focused operational workspace rather than a full dashboard;
-- avoid reset, quotas, analytics, production deployment and real integrations until their own stages.
+- define exact reset semantics for the current guest session;
+- restore the deterministic three-shipment demo dataset and coherent event histories;
+- keep reset server-controlled and transactionally safe;
+- avoid exposing direct status mutation or arbitrary seed controls;
+- make repeated reset requests idempotent and concurrent-safe;
+- preserve guest-session isolation;
+- add a clear frontend confirmation and recovery path;
+- refresh list, selection, detail, actions, progress and timeline after reset;
+- preserve stale-response and in-flight interaction protections;
+- add focused backend integration and frontend tests;
+- avoid quotas, rate limiting, analytics, deployment and real integrations until their own stages.
