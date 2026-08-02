@@ -3,24 +3,36 @@
 ## Current state
 
 - Private GitHub repository is active: `stalar78/etrn-flow-demo`.
-- Documentation structure is normalized.
-- Product requirements and Project Brain are committed.
-- Architecture Plan was completed by Codex in read-only Plan mode and accepted by GPT.
-- No application code has been accepted yet.
-- Current documentation head after architecture acceptance is on `main`.
+- Product requirements, architecture and Project Brain are committed.
+- PR #1, `Stage 03: scaffold ETRN Flow foundation`, was reviewed, corrected and squash-merged into `main`.
+- Accepted foundation merge commit: `cc8474083a4816f23fedc3c2aba486277f3eb923`.
+- Post-merge documentation update started on `main`.
+- Application foundation is accepted; persistence has not been implemented yet.
 
 ## Current stage
 
-`Architecture accepted → First Build stage pending`
+`Foundation accepted → Persistence foundation next`
+
+## Accepted technical foundation
+
+- pnpm workspace with `apps/`, `packages/` and `infra/` boundaries.
+- Frontend: React + TypeScript + Vite.
+- Backend: Node.js + TypeScript + Fastify.
+- Shared package with Zod health schema, demo roles and workflow states.
+- Framework-independent shipment workflow package with role/state validation and tests.
+- Fastify `/health` endpoint.
+- Local PostgreSQL Compose service bound to localhost.
+- Makefile wrappers for install, dev, checks and database lifecycle.
+- GitHub Actions CI for install, lint, typecheck, tests and build.
+- Workspace packages emit runnable ESM JavaScript and declarations to `dist`.
+- Development and tests resolve shared source explicitly without depending on stale build artifacts.
+- Plain-Node API runtime was smoke-tested after production build.
 
 ## Accepted architecture
 
 - Modular monolith in one repository.
-- Workspace layout with `apps/`, `packages/` and `infra/`.
-- Frontend: React + TypeScript + Vite.
-- Backend: Node.js + TypeScript + Fastify.
 - Database: PostgreSQL.
-- Data access: Drizzle ORM.
+- Data access: Drizzle ORM when persistence begins.
 - Validation: Zod.
 - Deployment target: Docker Compose on one VPS behind Nginx.
 - Integration: mock adapter only in MVP; future real operators attach through a replaceable adapter boundary.
@@ -33,15 +45,6 @@
 - Separate commercial page on StalarVision and separate demo subdomain.
 - Minimal credible release first; modernization continues after deployment.
 - Do not expand into a full TMS.
-
-## Guest session model
-
-- Entry without registration.
-- Backend-issued httpOnly cookie.
-- Strict session scoping for all data.
-- Recommended TTL: 24 hours.
-- Quotas, reset and expired-session cleanup.
-- Demo role switching is not production RBAC.
 
 ## Workflow rule
 
@@ -60,9 +63,28 @@ named action
 → UI refresh
 ```
 
-## First vertical slice
+## Next controlled stage
 
-The first complete slice after foundation must prove:
+The next stage is persistence foundation only.
+
+It should establish:
+
+- Drizzle ORM and PostgreSQL driver;
+- minimal schemas for guest sessions, shipments and append-only shipment events;
+- first migration and migration command;
+- repository interfaces separated from PostgreSQL implementations;
+- deterministic persistence integration tests against PostgreSQL;
+- explicit database configuration validation;
+- no HTTP guest-session lifecycle yet;
+- no seeded demo workspace yet;
+- no reset endpoint;
+- no shipment product API or product UI.
+
+This stage should remain narrow so the following stage can build the guest-session and seeded vertical slice on proven persistence.
+
+## First vertical slice after persistence
+
+The first complete product slice must prove:
 
 1. web and API run locally;
 2. guest session is created or resolved;
@@ -75,25 +97,6 @@ The first complete slice after foundation must prove:
 9. an event is appended;
 10. UI status and event history update.
 
-## Immediate next step
-
-Prepare an English Codex Build prompt for the technical foundation only.
-
-The foundation should establish:
-
-- workspace configuration;
-- web and API skeletons;
-- shared/domain packages;
-- real package scripts and Makefile targets;
-- lint, typecheck, tests and build;
-- health route;
-- initial workflow model and tests;
-- environment example without secrets;
-- CI without automatic production deployment;
-- local PostgreSQL/Docker foundation only where required by the accepted scope.
-
-It must not implement the whole MVP.
-
 ## Agent workflow rules
 
 - GPT maintains all project documentation directly through GitHub.
@@ -101,23 +104,18 @@ It must not implement the whole MVP.
 - Codex works on code and approved technical configuration only.
 - Codex must not modify documentation or Project Brain unless explicitly authorized.
 - Codex must not commit, push or deploy unless separately authorized.
-- The owner pulls GPT documentation commits locally with `git pull --ff-only origin main`.
-
-## Delivery estimate
-
-- Foundation: 4–6 working days.
-- First vertical slice: 3–5 working days after foundation.
-- Minimum public MVP: 18–26 working days after foundation.
-- Hardening and deployment: 5–8 working days.
-- Overall target: 5–7 calendar weeks if scope remains controlled.
+- The owner commits and pushes Codex changes to a stage branch.
+- GPT creates/reviews PRs and performs available GitHub operations.
+- The owner synchronizes local state with `git pull --ff-only origin main` after GPT GitHub changes.
 
 ## Active risks
 
 - accidental positioning as an accredited operator;
 - excessive scope and TMS overbuilding;
-- a static-looking demo without credible state changes;
-- guest-session abuse;
-- unverified legal wording;
+- persistence coupled directly to Fastify handlers;
+- mutable or deletable event history instead of append-only events;
+- weak guest-session isolation in the later stage;
+- tests passing only because of stale local build artifacts;
 - premature UI polish before the vertical slice works;
 - unnecessary framework or infrastructure complexity.
 
