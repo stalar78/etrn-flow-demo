@@ -3,14 +3,14 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–08 are accepted and merged into `main`.
-- Latest accepted product-code merge: Stage 08, commit `b2a24bd4c305f305e2ac86958ef45ff2480836bd`.
-- `PROJECT_BLUEPRINT.md` was synchronized after Stage 08 in commit `8bed4adcb70df26891b422771baeda38c28c2490`.
-- Current next stage: Stage 09 sequential workflow demo.
+- Stages 03–09 are accepted and merged into `main`.
+- Latest accepted product-code merge: Stage 09, commit `1b70452edb4e5305955d80409dc655a5e1d18702`.
+- `PROJECT_BLUEPRINT.md` was synchronized after Stage 09 in commit `e874dfb936b4384ac831021b9f8763d140a52dff`.
+- Current next stage: Stage 10 controlled demo reset/restart.
 
 ## Current stage
 
-`First frontend vertical slice accepted → Sequential multi-step workflow demo next`
+`Sequential workflow demo accepted → Repeatable reset/restart next`
 
 ## Product boundary
 
@@ -71,37 +71,33 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
 - Guarded shipment update and append-only event occur in one transaction.
 - Controlled errors include invalid request, forbidden role, invalid transition, not found, conflict and unavailable.
 - Concurrent requests cannot both apply the same expected-state transition.
-- Accepted Stage 07 demo transition:
-  - `markVehicleArrived`;
-  - role `warehouse`;
-  - `awaiting_loading → loading`.
+- Supported demo transitions currently exposed by the frontend:
+  - `draft → ready_for_dispatch` via `prepareDispatch` / `dispatcher`;
+  - `ready_for_dispatch → awaiting_loading` via `dispatch` / `dispatcher`;
+  - `awaiting_loading → loading` via `markVehicleArrived` / `warehouse`;
+  - `loading → in_transit` via `completeLoading` / `warehouse`;
+  - `draft → cancelled` via confirmed `cancel` / `dispatcher`.
 
-### Frontend vertical slice
+### Sequential frontend workflow demo
 
-- Russian operational workspace replaces the technical placeholder.
-- Same-origin typed API client uses relative URLs and `credentials: "same-origin"`.
-- Initialization sequence:
-  - health;
-  - session;
-  - bootstrap;
-  - shipment list;
-  - deterministic selection;
-  - shipment detail.
+- Russian operational workspace with same-origin typed API client.
+- Initialization sequence remains health → session → bootstrap → list → deterministic selection → detail.
 - Default selection prefers `DEMO-001`.
-- UI includes:
-  - product header and API status;
-  - persistent synthetic-data disclaimer;
-  - shipment list;
-  - shipment detail;
-  - workflow action panel;
-  - ordered event timeline;
-  - controlled loading, error, retry and success states.
-- State, role, action and event labels are mapped to Russian presentation labels.
-- After transition, list and detail reload from the server.
+- Action availability is derived from the current server-returned shipment state.
+- `DEMO-001` supports the accepted sequential path:
+  - `awaiting_loading → loading → in_transit`.
+- The previous action disappears only after server-confirmed refresh.
+- Draft state presents prepare-dispatch and confirmed destructive cancellation.
+- Workflow progress renders the accepted happy path without pretending unsupported states are linear.
+- `completed`, `cancelled` and `attention_required` are presented separately as terminal/branch states.
 - No optimistic state mutation.
+- Double-submit is guarded both by React phase and an immediate in-flight ref.
 - Shipment switching is disabled while a transition is pending.
+- Conflict and invalid-transition responses trigger a controlled refresh.
+- A failure of that recovery refresh exits `transitioning`, restores controls and shows a controlled Russian error.
+- Abort after entering `transitioning` also restores a usable phase.
 - Request-version and selection guards prevent stale detail or transition refresh from overwriting the current selection.
-- Timeline is hidden defensively when detail does not match the selected shipment.
+- Timeline remains hidden defensively when detail does not match the selected shipment.
 
 ## Workflow invariant
 
@@ -131,6 +127,8 @@ selectedShipmentId === detail.shipment.id
 
 Stale normal-detail requests, transition refreshes and conflict refreshes must not violate this invariant.
 
+After any non-abort transition completion, the interface must not remain in `phase === "transitioning"`.
+
 ## Testing state
 
 Accepted coverage includes:
@@ -147,38 +145,50 @@ Accepted coverage includes:
 - initialization and deterministic `DEMO-001` selection;
 - Russian presentation labels and synthetic-data disclaimer;
 - event ordering;
-- transition refresh;
+- sequential second action and refreshed action availability;
+- workflow progress and terminal/exception presentation;
+- confirmed cancellation;
+- double-submit protection;
 - initialization retry;
 - normal stale-detail protection;
 - stale success/conflict transition-refresh protection;
-- restoration of list interaction after transition.
+- conflict and invalid-transition recovery-refresh failure handling;
+- restoration of list and action interaction after transition failures.
 
-Latest accepted CI run for Stage 08 correction: run #23, successful.
+Latest accepted CI for Stage 09: run #28, successful after rerunning one flaky concurrency integration assertion.
 
-## Next controlled stage — Stage 09
+Known CI issue to address separately:
 
-Extend the demo from one isolated action into a short sequential workflow journey using only domain transitions that already exist.
+- the existing concurrency integration test sometimes receives `invalid_transition` instead of `transition_conflict` depending on whether the losing request validates before or after the winning transaction commits;
+- both outcomes preserve the core invariant that only one transition is applied;
+- the test should be stabilized deliberately without weakening backend guarantees.
 
-Before implementation, inspect the exact current domain transition table and backend contracts. Do not infer missing transitions.
+## Next controlled stage — Stage 10
 
-Stage 09 should:
+Add a repeatable demo reset/restart flow so a visitor can restore the deterministic scenario after advancing or cancelling shipments.
 
-- expose additional already-supported workflow actions in the frontend;
-- map each supported action to its exact required actor role;
-- allow the user to advance a selected synthetic shipment through several consecutive states;
-- update list, detail, available actions and timeline after each server-confirmed transition;
-- preserve guest-session scoping, guarded persistence and append-only events;
-- preserve all stale-response protections;
-- add focused tests for sequential execution and action availability;
-- remain narrow and avoid a generic workflow engine.
+Before implementation, inspect the current bootstrap service, repositories, transaction boundaries, event schema and frontend stale-request protections. Do not implement reset as direct status editing.
 
-Stage 09 should not yet implement:
+Stage 10 should:
 
-- reset endpoint;
-- session quotas or rate limiting;
-- shipment creation;
-- arbitrary editing;
-- role-switching controls beyond the explicit action presentation;
+- define exact reset semantics for the current guest session;
+- restore the deterministic three-shipment dataset and coherent histories;
+- remain server-controlled and transactionally safe;
+- be idempotent and safe under concurrent reset requests;
+- preserve guest-session isolation;
+- avoid accepting arbitrary shipment states, references, event payloads or seed data from the browser;
+- provide a clear frontend reset control with explicit confirmation;
+- disable conflicting interactions while reset is in flight;
+- refresh list, deterministic selection, detail, actions, progress and timeline after success;
+- preserve current UI state and restore controls on failure;
+- preserve request-version and selection invariants;
+- add focused backend integration and frontend tests.
+
+Stage 10 should not yet implement:
+
+- session quotas or public rate limiting;
+- expired-session cleanup jobs;
+- shipment creation or arbitrary editing;
 - search, filters, dashboard analytics or charts;
 - attachments, PDF or signatures;
 - real operator integration;
@@ -187,10 +197,10 @@ Stage 09 should not yet implement:
 
 ## Near-term stage order
 
-After Stage 09, likely controlled steps are:
+After Stage 10, likely controlled steps are:
 
-1. repeatable demo reset/restart;
-2. guest-session quotas and public abuse controls;
+1. guest-session quotas and public abuse controls;
+2. stabilization of concurrency CI semantics if not handled sooner;
 3. final UX/accessibility and browser-level happy-path audit;
 4. production Compose/Nginx hardening;
 5. deployment and smoke/security audit;
@@ -198,12 +208,12 @@ After Stage 09, likely controlled steps are:
 
 ## Delivery estimate
 
-After Stage 08:
+After Stage 09:
 
-- technical demo MVP: approximately 65–70% complete;
-- credible public portfolio demo: approximately 50–60% complete;
-- working public demo MVP: roughly 3–5 focused working days if scope remains controlled;
-- polished portfolio release: roughly 6–10 focused working days;
+- technical demo MVP: approximately 72–78% complete;
+- credible public portfolio demo: approximately 58–65% complete;
+- working public demo MVP: roughly 2–4 focused working days if scope remains controlled;
+- polished portfolio release: roughly 5–8 focused working days;
 - real customer pilot is a separate 3–6 week effort depending on authentication, integrations and operational requirements.
 
 ## Agent workflow rules
@@ -222,11 +232,13 @@ After Stage 08:
 
 - accidental positioning as an accredited operator;
 - TMS scope expansion;
-- exposing actions not supported by the domain;
-- bypassing role/state validation;
-- stale frontend data after sequential transitions;
+- reset implemented as arbitrary state mutation;
+- reset breaking event-chain coherence;
+- cross-session reset leakage;
+- stale frontend data after reset;
 - demo exhaustion without a controlled reset;
 - public abuse before quotas/rate limiting;
+- flaky concurrency assertion producing unreliable CI signals;
 - premature real-integration claims.
 
 ## Documents to read first in a new chat
