@@ -20,4 +20,5 @@ export function createDatabaseConnection(databaseUrl = getDatabaseConfig().datab
   };
 }
 
+export type DatabaseConnection = ReturnType<typeof createDatabaseConnection>;
 export type Database = ReturnType<typeof createDatabaseConnection>["db"];
