@@ -59,6 +59,7 @@ export type AppendShipmentEventInput = {
 export interface GuestSessionRepository {
   create(input: CreateGuestSessionInput): Promise<GuestSessionRecord>;
   findById(id: string): Promise<GuestSessionRecord | null>;
+  touchLastSeen(input: { id: string; lastSeenAt: Date }): Promise<GuestSessionRecord | null>;
 }
 
 export interface ShipmentRepository {

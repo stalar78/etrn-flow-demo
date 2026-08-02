@@ -69,6 +69,18 @@ class PostgresGuestSessionRepository implements GuestSessionRepository {
 
     return record ?? null;
   }
+
+  async touchLastSeen(input: { id: string; lastSeenAt: Date }) {
+    const [record] = await this.db
+      .update(guestSessions)
+      .set({
+        lastSeenAt: input.lastSeenAt
+      })
+      .where(eq(guestSessions.id, input.id))
+      .returning();
+
+    return record ?? null;
+  }
 }
 
 class PostgresShipmentRepository implements ShipmentRepository {
