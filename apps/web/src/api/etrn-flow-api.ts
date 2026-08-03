@@ -47,6 +47,10 @@ export type ApiErrorCode =
   | "guest_session_unavailable"
   | "demo_bootstrap_unavailable"
   | "demo_reset_unavailable"
+  | "demo_reset_quota_exceeded"
+  | "guest_session_quota_exceeded"
+  | "guest_session_rate_limited"
+  | "guest_session_usage_unavailable"
   | "shipment_list_unavailable"
   | "shipment_detail_unavailable"
   | "request_failed"
@@ -248,6 +252,10 @@ function normalizeErrorCode(code: string | undefined): ApiErrorCode {
     case "guest_session_unavailable":
     case "demo_bootstrap_unavailable":
     case "demo_reset_unavailable":
+    case "demo_reset_quota_exceeded":
+    case "guest_session_quota_exceeded":
+    case "guest_session_rate_limited":
+    case "guest_session_usage_unavailable":
     case "shipment_list_unavailable":
     case "shipment_detail_unavailable":
       return code;

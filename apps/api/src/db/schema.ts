@@ -4,6 +4,7 @@ import {
   foreignKey,
   index,
   bigserial,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -26,6 +27,18 @@ export const guestSessions = pgTable("guest_sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull()
+});
+
+export const guestSessionUsageLimits = pgTable("guest_session_usage_limits", {
+  guestSessionId: uuid("guest_session_id")
+    .primaryKey()
+    .references(() => guestSessions.id, { onDelete: "cascade" }),
+  mutationCount: integer("mutation_count").default(0).notNull(),
+  resetCount: integer("reset_count").default(0).notNull(),
+  rateWindowStartedAt: timestamp("rate_window_started_at", { withTimezone: true })
+    .notNull(),
+  rateWindowCount: integer("rate_window_count").default(0).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 });
 
 export const shipments = pgTable(

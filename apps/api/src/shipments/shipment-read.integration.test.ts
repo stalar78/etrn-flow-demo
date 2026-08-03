@@ -24,6 +24,10 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  await removeFailingUsageQuotaTrigger();
+  await removeFailingShipmentInsertTrigger();
+  await removeFailingShipmentDeleteTrigger();
+  await removeFailingShipmentEventTrigger();
   await connection.db.execute(sql`truncate shipment_events, shipments, guest_sessions restart identity cascade`);
 });
 
@@ -223,6 +227,682 @@ describe("shipment read API", () => {
     expect(list.json().shipments).toHaveLength(3);
     expect(new Set(list.json().shipments.map((shipment: { reference: string }) => shipment.reference)).size).toBe(3);
     expect(detail.events).toHaveLength(2);
+  });
+
+  it("enforces burst rate limits with Retry-After before business execution", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({
+        rateMaxRequests: 2,
+        rateWindowSeconds: 10
+      })
+    });
+    const session = await app.inject({ method: "GET", url: "/api/session" });
+    const cookie = session.cookies[0];
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/demo/bootstrap",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/demo/bootstrap",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const limited = await app.inject({
+      method: "POST",
+      url: "/api/demo/bootstrap",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    await app.close();
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toEqual({ error: "guest_session_rate_limited" });
+    expect(Number(limited.headers["retry-after"])).toBeGreaterThanOrEqual(1);
+  });
+
+  it("starts a fresh burst window after the configured interval expires", async () => {
+    let currentTime = new Date("2026-08-02T10:00:00.000Z");
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({
+        rateMaxRequests: 1,
+        rateWindowSeconds: 5
+      }),
+      clock: {
+        now: () => currentTime
+      }
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+
+    const limited = await app.inject({
+      method: "POST",
+      url: "/api/demo/bootstrap",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    currentTime = new Date("2026-08-02T10:00:06.000Z");
+    const afterWindow = await app.inject({
+      method: "POST",
+      url: "/api/demo/bootstrap",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    await app.close();
+
+    expect(bootstrap.statusCode).toBe(200);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toEqual({ error: "guest_session_rate_limited" });
+    expect(afterWindow.statusCode).toBe(200);
+    expect(afterWindow.json()).toEqual({ demo: { created: false, shipmentCount: 3 } });
+  });
+
+  it("does not allow concurrent burst requests to exceed the configured window maximum", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({
+        rateMaxRequests: 1,
+        rateWindowSeconds: 10
+      })
+    });
+    const session = await app.inject({ method: "GET", url: "/api/session" });
+    const cookie = session.cookies[0];
+
+    const responses = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: "/api/demo/bootstrap",
+        cookies: { [cookie.name]: cookie.value }
+      }),
+      app.inject({
+        method: "POST",
+        url: "/api/demo/bootstrap",
+        cookies: { [cookie.name]: cookie.value }
+      })
+    ]);
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    await app.close();
+
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 429]);
+    expect(responses.find((response) => response.statusCode === 429)?.json()).toEqual({
+      error: "guest_session_rate_limited"
+    });
+    expect(list.json().shipments).toHaveLength(3);
+  });
+
+  it("keeps quota and burst windows isolated by guest session", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({
+        mutationLimit: 1,
+        rateMaxRequests: 1
+      })
+    });
+    const first = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const second = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    await app.close();
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(first.cookies[0]?.value).not.toBe(second.cookies[0]?.value);
+  });
+
+  it("gives a replacement guest session an independent quota boundary", async () => {
+    let currentTime = new Date("2026-08-02T10:00:00.000Z");
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({
+        mutationLimit: 1,
+        rateMaxRequests: 10
+      }),
+      clock: {
+        now: () => currentTime
+      },
+      sessionConfig: {
+        ttlSeconds: 1
+      }
+    });
+    const first = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const expiredCookie = first.cookies[0];
+    currentTime = new Date("2026-08-02T10:00:02.000Z");
+
+    const replacement = await app.inject({
+      method: "POST",
+      url: "/api/demo/bootstrap",
+      cookies: { [expiredCookie.name]: expiredCookie.value }
+    });
+    await app.close();
+
+    expect(first.statusCode).toBe(200);
+    expect(replacement.statusCode).toBe(200);
+    expect(replacement.cookies[0]?.value).not.toBe(expiredCookie.value);
+    expect(replacement.json()).toEqual({ demo: { created: true, shipmentCount: 3 } });
+  });
+
+  it("allows read endpoints after mutation quota is exhausted", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 1, rateMaxRequests: 10 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+
+    const blocked = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const detail = await app.inject({
+      method: "GET",
+      url: `/api/shipments/${target.id}`,
+      cookies: { [cookie.name]: cookie.value }
+    });
+    await app.close();
+
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.json()).toEqual({ error: "guest_session_quota_exceeded" });
+    expect(list.statusCode).toBe(200);
+    expect(detail.statusCode).toBe(200);
+  });
+
+  it("does not spend lifetime mutation quota for idempotent bootstrap, invalid, forbidden, or not-found transitions", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 2, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+
+    const idempotent = await app.inject({
+      method: "POST",
+      url: "/api/demo/bootstrap",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const forbidden = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "driver"
+      }
+    });
+    const missing = await app.inject({
+      method: "POST",
+      url: "/api/shipments/11111111-1111-4111-8111-111111111111/actions",
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const success = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    await app.close();
+
+    expect(idempotent.json()).toEqual({ demo: { created: false, shipmentCount: 3 } });
+    expect(forbidden.statusCode).toBe(403);
+    expect(missing.statusCode).toBe(404);
+    expect(success.statusCode).toBe(200);
+  });
+
+  it("rejects reset by reset quota without changing the dataset or resetting counters", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 10, resetLimit: 1, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+
+    const firstReset = await app.inject({
+      method: "POST",
+      url: "/api/demo/reset",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const currentDemo001 = await findShipmentByReference(app, cookie, "DEMO-001");
+    await app.inject({
+      method: "POST",
+      url: `/api/shipments/${currentDemo001.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const beforeList = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const beforeDetail = await loadShipmentDetail(app, cookie, currentDemo001.id);
+    const beforeUsage = await loadUsage(cookie.value);
+
+    const blockedReset = await app.inject({
+      method: "POST",
+      url: "/api/demo/reset",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const afterList = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const afterDemo001 = afterList.json().shipments.find(
+      (shipment: { reference: string }) => shipment.reference === "DEMO-001"
+    );
+    const afterDetail = await loadShipmentDetail(app, cookie, afterDemo001.id);
+    const afterUsage = await loadUsage(cookie.value);
+    await app.close();
+
+    expect(firstReset.statusCode).toBe(200);
+    expect(beforeList.json().shipments).toHaveLength(3);
+    expect(blockedReset.statusCode).toBe(429);
+    expect(blockedReset.json()).toEqual({ error: "demo_reset_quota_exceeded" });
+    expect(afterList.json().shipments).toHaveLength(3);
+    expect(snapshotShipments(afterList.json().shipments)).toEqual(
+      snapshotShipments(beforeList.json().shipments)
+    );
+    expect(afterDemo001).toMatchObject({
+      id: currentDemo001.id,
+      reference: "DEMO-001"
+    });
+    expect(afterDetail.shipment.state).toBe(beforeDetail.shipment.state);
+    expect(afterDetail.events.map((event: { eventType: string }) => event.eventType)).toEqual(
+      beforeDetail.events.map((event: { eventType: string }) => event.eventType)
+    );
+    expect(afterDetail.events.map((event: { previousState: string; nextState: string }) => ({
+      previousState: event.previousState,
+      nextState: event.nextState
+    }))).toEqual(
+      beforeDetail.events.map((event: { previousState: string; nextState: string }) => ({
+        previousState: event.previousState,
+        nextState: event.nextState
+      }))
+    );
+    expect(afterDetail.shipment.state).toBe("loading");
+    expect(afterDetail.events.map((event: { eventType: string }) => event.eventType)).toContain("markVehicleArrived");
+    expect(afterUsage).toMatchObject({
+      mutation_count: beforeUsage?.mutation_count,
+      reset_count: beforeUsage?.reset_count,
+      rate_window_count: (beforeUsage?.rate_window_count ?? 0) + 1
+    });
+  });
+
+  it("rejects reset by general mutation quota without changing the dataset", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 1, resetLimit: 10, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+
+    const blockedReset = await app.inject({
+      method: "POST",
+      url: "/api/demo/reset",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const after = await loadShipmentDetail(app, cookie, target.id);
+    await app.close();
+
+    expect(blockedReset.statusCode).toBe(429);
+    expect(blockedReset.json()).toEqual({ error: "guest_session_quota_exceeded" });
+    expect(after.shipment.state).toBe("awaiting_loading");
+    expect(after.events).toHaveLength(2);
+  });
+
+  it("rejects transition by general mutation quota without changing shipment state or appending an event", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 1, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+    const before = await loadShipmentDetail(app, cookie, target.id);
+
+    const blocked = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const after = await loadShipmentDetail(app, cookie, target.id);
+    await app.close();
+
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.json()).toEqual({ error: "guest_session_quota_exceeded" });
+    expect(after.shipment.state).toBe(before.shipment.state);
+    expect(after.events).toHaveLength(before.events.length);
+  });
+
+  it("returns usage unavailable when bootstrap lifetime quota persistence fails and creates no dataset", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 10, rateMaxRequests: 20 })
+    });
+    const session = await app.inject({ method: "GET", url: "/api/session" });
+    const cookie = session.cookies[0];
+
+    await installFailingUsageQuotaTrigger();
+    let response;
+    try {
+      response = await app.inject({
+        method: "POST",
+        url: "/api/demo/bootstrap",
+        cookies: { [cookie.name]: cookie.value }
+      });
+    } finally {
+      await removeFailingUsageQuotaTrigger();
+    }
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const usage = await loadUsage(cookie.value);
+    await app.close();
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "guest_session_usage_unavailable" });
+    expect(list.json().shipments).toHaveLength(0);
+    expect(usage).toMatchObject({
+      mutation_count: 0,
+      reset_count: 0,
+      rate_window_count: 1
+    });
+  });
+
+  it("returns usage unavailable when reset lifetime quota persistence fails and preserves the dataset", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 10, resetLimit: 10, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const beforeList = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const beforeUsage = await loadUsage(cookie.value);
+
+    await installFailingUsageQuotaTrigger();
+    let response;
+    try {
+      response = await app.inject({
+        method: "POST",
+        url: "/api/demo/reset",
+        cookies: { [cookie.name]: cookie.value }
+      });
+    } finally {
+      await removeFailingUsageQuotaTrigger();
+    }
+    const afterList = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const afterUsage = await loadUsage(cookie.value);
+    await app.close();
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "guest_session_usage_unavailable" });
+    expect(afterList.json().shipments).toEqual(beforeList.json().shipments);
+    expect(afterUsage).toMatchObject({
+      mutation_count: beforeUsage?.mutation_count,
+      reset_count: beforeUsage?.reset_count,
+      rate_window_count: (beforeUsage?.rate_window_count ?? 0) + 1
+    });
+  });
+
+  it("returns usage unavailable when transition lifetime quota persistence fails without changing state or events", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 10, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+    const before = await loadShipmentDetail(app, cookie, target.id);
+    const beforeUsage = await loadUsage(cookie.value);
+
+    await installFailingUsageQuotaTrigger();
+    let response;
+    try {
+      response = await app.inject({
+        method: "POST",
+        url: `/api/shipments/${target.id}/actions`,
+        cookies: { [cookie.name]: cookie.value },
+        payload: {
+          action: "markVehicleArrived",
+          actorRole: "warehouse"
+        }
+      });
+    } finally {
+      await removeFailingUsageQuotaTrigger();
+    }
+    const after = await loadShipmentDetail(app, cookie, target.id);
+    const afterUsage = await loadUsage(cookie.value);
+    await app.close();
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "guest_session_usage_unavailable" });
+    expect(after.shipment.state).toBe(before.shipment.state);
+    expect(after.events).toHaveLength(before.events.length);
+    expect(afterUsage).toMatchObject({
+      mutation_count: beforeUsage?.mutation_count,
+      reset_count: beforeUsage?.reset_count,
+      rate_window_count: (beforeUsage?.rate_window_count ?? 0) + 1
+    });
+  });
+
+  it("keeps the bootstrap-specific error for ordinary bootstrap persistence failures", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 10, rateMaxRequests: 20 })
+    });
+    const session = await app.inject({ method: "GET", url: "/api/session" });
+    const cookie = session.cookies[0];
+
+    await installFailingShipmentInsertTrigger();
+    let response;
+    try {
+      response = await app.inject({
+        method: "POST",
+        url: "/api/demo/bootstrap",
+        cookies: { [cookie.name]: cookie.value }
+      });
+    } finally {
+      await removeFailingShipmentInsertTrigger();
+    }
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    await app.close();
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "demo_bootstrap_unavailable" });
+    expect(list.json().shipments).toHaveLength(0);
+  });
+
+  it("keeps the reset-specific error for ordinary reset persistence failures", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 10, resetLimit: 10, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const beforeList = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+
+    await installFailingShipmentDeleteTrigger();
+    let response;
+    try {
+      response = await app.inject({
+        method: "POST",
+        url: "/api/demo/reset",
+        cookies: { [cookie.name]: cookie.value }
+      });
+    } finally {
+      await removeFailingShipmentDeleteTrigger();
+    }
+    const afterList = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    await app.close();
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "demo_reset_unavailable" });
+    expect(afterList.json().shipments).toEqual(beforeList.json().shipments);
+  });
+
+  it("rolls back lifetime quota when transition persistence fails inside the business transaction", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 2, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+
+    await installFailingShipmentEventTrigger();
+    let failed;
+    try {
+      failed = await app.inject({
+        method: "POST",
+        url: `/api/shipments/${target.id}/actions`,
+        cookies: { [cookie.name]: cookie.value },
+        payload: {
+          action: "markVehicleArrived",
+          actorRole: "warehouse"
+        }
+      });
+    } finally {
+      await removeFailingShipmentEventTrigger();
+    }
+
+    const retry = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+    const after = await loadShipmentDetail(app, cookie, target.id);
+    await app.close();
+
+    expect(failed.statusCode).toBe(503);
+    expect(failed.json()).toEqual({ error: "transition_unavailable" });
+    expect(retry.statusCode).toBe(200);
+    expect(after.shipment.state).toBe("loading");
+  });
+
+  it("allows only one concurrent transition to consume the final mutation quota slot", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 2, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const demo001 = await findShipmentByReference(app, cookie, "DEMO-001");
+    const seededShipmentId = "22222222-2222-4222-8222-222222222222";
+    await connection.db.execute(sql`
+      insert into shipments (id, guest_session_id, reference, state)
+      values (${seededShipmentId}, ${cookie.value}, 'TEST-FINAL-SLOT', 'awaiting_loading')
+    `);
+
+    const responses = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: `/api/shipments/${demo001.id}/actions`,
+        cookies: { [cookie.name]: cookie.value },
+        payload: {
+          action: "markVehicleArrived",
+          actorRole: "warehouse"
+        }
+      }),
+      app.inject({
+        method: "POST",
+        url: `/api/shipments/${seededShipmentId}/actions`,
+        cookies: { [cookie.name]: cookie.value },
+        payload: {
+          action: "markVehicleArrived",
+          actorRole: "warehouse"
+        }
+      })
+    ]);
+    const demoAfter = await loadShipmentDetail(app, cookie, demo001.id);
+    const seededAfter = await loadShipmentDetail(app, cookie, seededShipmentId);
+    await app.close();
+
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 429]);
+    expect(responses.find((response) => response.statusCode === 429)?.json()).toEqual({
+      error: "guest_session_quota_exceeded"
+    });
+    expect([demoAfter.shipment.state, seededAfter.shipment.state].sort()).toEqual([
+      "awaiting_loading",
+      "loading"
+    ]);
+  });
+
+  it("allows only one concurrent reset to consume the final reset quota slot", async () => {
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 10, resetLimit: 2, rateMaxRequests: 20 })
+    });
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const firstReset = await app.inject({
+      method: "POST",
+      url: "/api/demo/reset",
+      cookies: { [cookie.name]: cookie.value }
+    });
+
+    const responses = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: "/api/demo/reset",
+        cookies: { [cookie.name]: cookie.value }
+      }),
+      app.inject({
+        method: "POST",
+        url: "/api/demo/reset",
+        cookies: { [cookie.name]: cookie.value }
+      })
+    ]);
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    await app.close();
+
+    expect(firstReset.statusCode).toBe(200);
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 429]);
+    expect(responses.find((response) => response.statusCode === 429)?.json()).toEqual({
+      error: "demo_reset_quota_exceeded"
+    });
+    expect(list.json().shipments).toHaveLength(3);
+    expect(new Set(list.json().shipments.map((shipment: { reference: string }) => shipment.reference)).size).toBe(3);
   });
 
   it("isolates bootstrapped datasets by guest session", async () => {
@@ -435,7 +1115,7 @@ describe("shipment read API", () => {
     expect(foreign.json()).toEqual(unknown.json());
   });
 
-  it("returns a controlled response for transition database failures", async () => {
+  it("returns a controlled response when usage persistence fails before transition business logic", async () => {
     const app = createTestApp({
       database: {
         db: {
@@ -473,7 +1153,7 @@ describe("shipment read API", () => {
     await app.close();
 
     expect(response.statusCode).toBe(503);
-    expect(response.json()).toEqual({ error: "transition_unavailable" });
+    expect(response.json()).toEqual({ error: "guest_session_usage_unavailable" });
   });
 
   it("allows only one of two concurrent transitions from the same expected state", async () => {
@@ -612,7 +1292,7 @@ describe("shipment read API", () => {
     expect(detail.statusCode).toBe(503);
   });
 
-  it("returns a controlled response for reset database failures", async () => {
+  it("returns a controlled response when usage persistence fails before reset business logic", async () => {
     const app = createTestApp({
       database: {
         db: {
@@ -652,21 +1332,39 @@ describe("shipment read API", () => {
     await app.close();
 
     expect(response.statusCode).toBe(503);
-    expect(response.json()).toEqual({ error: "demo_reset_unavailable" });
+    expect(response.json()).toEqual({ error: "guest_session_usage_unavailable" });
   });
 });
 
-function createTestApp(options: { database?: AppOptions["database"] } = {}) {
+function createTestApp(options: {
+  abuseControlConfig?: AppOptions["abuseControlConfig"];
+  database?: AppOptions["database"];
+  clock?: AppOptions["clock"];
+  sessionConfig?: Partial<NonNullable<AppOptions["sessionConfig"]>>;
+} = {}) {
   return createApp({
+    abuseControlConfig: options.abuseControlConfig,
+    clock: options.clock,
     enableGuestSessions: true,
     database: options.database ?? connection,
     sessionConfig: {
       cookieName: "test_guest_session",
       ttlSeconds: 60 * 60,
       cookieSecure: false,
-      cookieSameSite: "lax"
+      cookieSameSite: "lax",
+      ...options.sessionConfig
     }
   });
+}
+
+function abuseConfig(overrides: Partial<NonNullable<AppOptions["abuseControlConfig"]>> = {}) {
+  return {
+    mutationLimit: 60,
+    rateMaxRequests: 6,
+    rateWindowSeconds: 10,
+    resetLimit: 8,
+    ...overrides
+  };
 }
 
 async function findShipmentByReference(
@@ -713,6 +1411,33 @@ async function loadShipmentDetail(
   };
 }
 
+function snapshotShipments(
+  shipments: Array<{ id: string; reference: string; state: string }>
+) {
+  return shipments
+    .map((shipment) => ({
+      id: shipment.id,
+      reference: shipment.reference,
+      state: shipment.state
+    }))
+    .sort((left, right) => left.reference.localeCompare(right.reference));
+}
+
+async function loadUsage(guestSessionId: string) {
+  const records = await connection.db.execute<{
+    mutation_count: number;
+    reset_count: number;
+    rate_window_count: number;
+  }>(sql`
+    select mutation_count, reset_count, rate_window_count
+    from guest_session_usage_limits
+    where guest_session_id = ${guestSessionId}
+    limit 1
+  `);
+
+  return records.rows[0] ?? null;
+}
+
 function guestSessionRecord() {
   const now = new Date("2026-08-02T10:00:00.000Z");
 
@@ -722,4 +1447,121 @@ function guestSessionRecord() {
     expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
     lastSeenAt: now
   };
+}
+
+async function installFailingUsageQuotaTrigger() {
+  await connection.db.execute(sql`
+    create or replace function fail_usage_quota_update_for_test()
+    returns trigger
+    language plpgsql
+    as $$
+    begin
+      if new.mutation_count <> old.mutation_count
+        or new.reset_count <> old.reset_count then
+        raise exception 'simulated usage quota persistence failure';
+      end if;
+
+      return new;
+    end;
+    $$
+  `);
+  await connection.db.execute(sql`
+    create trigger fail_usage_quota_update_for_test
+    before update on guest_session_usage_limits
+    for each row
+    execute function fail_usage_quota_update_for_test()
+  `);
+}
+
+async function removeFailingUsageQuotaTrigger() {
+  await connection.db.execute(sql`
+    drop trigger if exists fail_usage_quota_update_for_test on guest_session_usage_limits
+  `);
+  await connection.db.execute(sql`
+    drop function if exists fail_usage_quota_update_for_test()
+  `);
+}
+
+async function installFailingShipmentInsertTrigger() {
+  await connection.db.execute(sql`
+    create or replace function fail_shipment_insert_for_test()
+    returns trigger
+    language plpgsql
+    as $$
+    begin
+      raise exception 'simulated shipment insert failure';
+    end;
+    $$
+  `);
+  await connection.db.execute(sql`
+    create trigger fail_shipment_insert_for_test
+    before insert on shipments
+    for each row
+    execute function fail_shipment_insert_for_test()
+  `);
+}
+
+async function removeFailingShipmentInsertTrigger() {
+  await connection.db.execute(sql`
+    drop trigger if exists fail_shipment_insert_for_test on shipments
+  `);
+  await connection.db.execute(sql`
+    drop function if exists fail_shipment_insert_for_test()
+  `);
+}
+
+async function installFailingShipmentDeleteTrigger() {
+  await connection.db.execute(sql`
+    create or replace function fail_shipment_delete_for_test()
+    returns trigger
+    language plpgsql
+    as $$
+    begin
+      raise exception 'simulated shipment delete failure';
+    end;
+    $$
+  `);
+  await connection.db.execute(sql`
+    create trigger fail_shipment_delete_for_test
+    before delete on shipments
+    for each row
+    execute function fail_shipment_delete_for_test()
+  `);
+}
+
+async function removeFailingShipmentDeleteTrigger() {
+  await connection.db.execute(sql`
+    drop trigger if exists fail_shipment_delete_for_test on shipments
+  `);
+  await connection.db.execute(sql`
+    drop function if exists fail_shipment_delete_for_test()
+  `);
+}
+
+async function installFailingShipmentEventTrigger() {
+  await connection.db.execute(sql`
+    create or replace function fail_shipment_event_append_for_test()
+    returns trigger
+    language plpgsql
+    as $$
+    begin
+      raise exception 'simulated shipment event append failure';
+    end;
+    $$
+  `);
+  await connection.db.execute(sql`
+    create trigger fail_shipment_event_append_for_test
+    before insert on shipment_events
+    for each row
+    execute function fail_shipment_event_append_for_test()
+  `);
+}
+
+async function removeFailingShipmentEventTrigger() {
+  await connection.db.execute(sql`
+    drop trigger if exists fail_shipment_event_append_for_test on shipment_events
+  `);
+  await connection.db.execute(sql`
+    drop function if exists fail_shipment_event_append_for_test()
+  `);
 }
