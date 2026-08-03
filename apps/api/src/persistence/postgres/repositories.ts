@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type {
   AppendShipmentEventInput,
@@ -15,7 +15,7 @@ import { guestSessions, shipmentEvents, shipments } from "../../db/schema.js";
 
 type DbClient = Pick<
   Parameters<Parameters<ReturnType<typeof import("../../db/connection.js").createDatabaseConnection>["db"]["transaction"]>[0]>[0],
-  "insert" | "select" | "update"
+  "delete" | "execute" | "insert" | "select" | "update"
 > & {
   transaction?: ReturnType<
     typeof import("../../db/connection.js").createDatabaseConnection
@@ -26,6 +26,7 @@ export function createPostgresRepositories(db: DbClient): PostgresRepositories {
   return {
     guestSessions: new PostgresGuestSessionRepository(db),
     shipments: new PostgresShipmentRepository(db),
+    demoReset: new PostgresDemoResetRepository(db),
     shipmentEvents: new PostgresShipmentEventRepository(db),
     async transaction<T>(operation: (repositories: PostgresRepositories) => Promise<T>) {
       if (!db.transaction) {
@@ -42,8 +43,15 @@ export function createPostgresRepositories(db: DbClient): PostgresRepositories {
 export type PostgresRepositories = {
   guestSessions: GuestSessionRepository;
   shipments: ShipmentRepository;
+  demoReset: DemoResetRepository;
   shipmentEvents: ShipmentEventRepository;
   transaction<T>(operation: (repositories: PostgresRepositories) => Promise<T>): Promise<T>;
+};
+
+export type DemoResetRepository = {
+  deleteEventsByGuestSession(guestSessionId: string): Promise<void>;
+  deleteShipmentsByGuestSession(guestSessionId: string): Promise<void>;
+  lockGuestSession(guestSessionId: string): Promise<void>;
 };
 
 class PostgresGuestSessionRepository implements GuestSessionRepository {
@@ -155,6 +163,26 @@ class PostgresShipmentRepository implements ShipmentRepository {
       .returning();
 
     return record ? coerceShipmentRecord(record) : null;
+  }
+}
+
+class PostgresDemoResetRepository implements DemoResetRepository {
+  constructor(private readonly db: DbClient) {}
+
+  async lockGuestSession(guestSessionId: string) {
+    await this.db.execute(sql`select pg_advisory_xact_lock(hashtext(${guestSessionId}))`);
+  }
+
+  async deleteEventsByGuestSession(guestSessionId: string) {
+    await this.db
+      .delete(shipmentEvents)
+      .where(eq(shipmentEvents.guestSessionId, guestSessionId));
+  }
+
+  async deleteShipmentsByGuestSession(guestSessionId: string) {
+    await this.db
+      .delete(shipments)
+      .where(eq(shipments.guestSessionId, guestSessionId));
   }
 }
 

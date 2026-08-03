@@ -46,6 +46,7 @@ export type ApiErrorCode =
   | "transition_unavailable"
   | "guest_session_unavailable"
   | "demo_bootstrap_unavailable"
+  | "demo_reset_unavailable"
   | "shipment_list_unavailable"
   | "shipment_detail_unavailable"
   | "request_failed"
@@ -78,6 +79,10 @@ const bootstrapResponseSchema = z.object({
     created: z.boolean(),
     shipmentCount: z.number()
   })
+});
+
+const resetDemoResponseSchema = z.object({
+  reset: z.literal(true)
 });
 
 const shipmentSummarySchema = z.object({
@@ -122,6 +127,7 @@ const transitionResponseSchema = z.object({
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;
 export type BootstrapResponse = z.infer<typeof bootstrapResponseSchema>;
+export type ResetDemoResponse = z.infer<typeof resetDemoResponseSchema>;
 export type ShipmentSummary = z.infer<typeof shipmentSummarySchema>;
 export type ShipmentEvent = z.infer<typeof shipmentEventSchema>;
 export type ShipmentListResponse = z.infer<typeof shipmentListResponseSchema>;
@@ -143,6 +149,13 @@ export async function getSession(options?: { signal?: AbortSignal }) {
 
 export async function bootstrapDemo(options?: { signal?: AbortSignal }) {
   return request("/api/demo/bootstrap", bootstrapResponseSchema, {
+    method: "POST",
+    signal: options?.signal
+  });
+}
+
+export async function resetDemo(options?: { signal?: AbortSignal }) {
+  return request("/api/demo/reset", resetDemoResponseSchema, {
     method: "POST",
     signal: options?.signal
   });
@@ -234,6 +247,7 @@ function normalizeErrorCode(code: string | undefined): ApiErrorCode {
     case "transition_unavailable":
     case "guest_session_unavailable":
     case "demo_bootstrap_unavailable":
+    case "demo_reset_unavailable":
     case "shipment_list_unavailable":
     case "shipment_detail_unavailable":
       return code;

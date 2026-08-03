@@ -11,7 +11,7 @@ import {
   type Database
 } from "./db/connection.js";
 import { createPostgresRepositories } from "./persistence/postgres/repositories.js";
-import { DemoBootstrapService } from "./services/demo-bootstrap.js";
+import { DemoBootstrapService, DemoResetService } from "./services/demo-bootstrap.js";
 import { GuestSessionService, type Clock } from "./services/guest-session.js";
 import { ShipmentTransitionService } from "./services/shipment-transition.js";
 import {
@@ -67,6 +67,7 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
       options.clock
     );
     const demoBootstrapService = new DemoBootstrapService(repositories);
+    const demoResetService = new DemoResetService(repositories);
     const shipmentTransitionService = new ShipmentTransitionService(repositories);
 
     app.addHook("onClose", async () => {
@@ -139,6 +140,18 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
 
         return reply.code(503).send({
           error: "demo_bootstrap_unavailable"
+        });
+      }
+    });
+
+    app.post("/api/demo/reset", { preHandler: resolveGuestSession }, async (request, reply) => {
+      try {
+        return await demoResetService.reset(requireGuestSession(request).id);
+      } catch (error) {
+        request.log.error({ error }, "Failed to reset demo shipments");
+
+        return reply.code(503).send({
+          error: "demo_reset_unavailable"
         });
       }
     });

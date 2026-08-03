@@ -15,7 +15,8 @@ vi.mock("./api/etrn-flow-api", async (importOriginal) => {
     getHealth: vi.fn(),
     getSession: vi.fn(),
     getShipmentDetail: vi.fn(),
-    listShipments: vi.fn()
+    listShipments: vi.fn(),
+    resetDemo: vi.fn()
   };
 });
 
@@ -64,6 +65,7 @@ describe("App", () => {
         nextState: "loading"
       })
     });
+    mockedApi.resetDemo.mockResolvedValue({ reset: true });
   });
 
   afterEach(() => {
@@ -219,6 +221,253 @@ describe("App", () => {
     expect(within(timelineItems[2]).getByText("#3")).toBeInTheDocument();
     expect(within(timelineItems[3]).getByText("#4")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Завершить погрузку/i })).not.toBeInTheDocument();
+  });
+
+  it("opens and cancels demo reset confirmation without calling the API", async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Начать демо заново/i }));
+
+    expect(mockedApi.resetDemo).not.toHaveBeenCalled();
+    expect(screen.getByText("Все изменения в текущих синтетических данных будут сброшены.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Не сбрасывать/i }));
+
+    expect(screen.queryByText("Все изменения в текущих синтетических данных будут сброшены.")).not.toBeInTheDocument();
+    expect(mockedApi.resetDemo).not.toHaveBeenCalled();
+  });
+
+  it("disables reset confirmation while a workflow transition is active", async () => {
+    const transition = deferred<Awaited<ReturnType<typeof api.executeShipmentAction>>>();
+    mockedApi.executeShipmentAction.mockReturnValueOnce(transition.promise);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+    const resetButton = screen.getByRole("button", { name: /Действие выполняется/i });
+    fireEvent.click(resetButton);
+
+    expect(resetButton).toBeDisabled();
+    expect(mockedApi.resetDemo).not.toHaveBeenCalled();
+    expect(screen.queryByText("Все изменения в текущих синтетических данных будут сброшены.")).not.toBeInTheDocument();
+
+    transition.resolve({
+      transition: {
+        shipmentId: "shipment-1",
+        action: "markVehicleArrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading"
+      },
+      event: shipmentEvent({
+        id: "event-3",
+        sequence: 3,
+        eventType: "markVehicleArrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading"
+      })
+    });
+
+    await screen.findByText("Действие выполнено. Состояние и история обновлены.");
+  });
+
+  it("resets the demo once, disables controls while pending, and reloads DEMO-001 detail", async () => {
+    const reset = deferred<Awaited<ReturnType<typeof api.resetDemo>>>();
+    mockedApi.resetDemo.mockReturnValueOnce(reset.promise);
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })
+        ]
+      })
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "reset-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" }),
+          shipmentSummary({ id: "reset-3", reference: "DEMO-003", state: "completed" })
+        ]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1", {
+        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })
+      }))
+      .mockResolvedValueOnce(detailFor("reset-1", {
+        shipment: shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" })
+      }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Начать демо заново/i }));
+    const confirm = screen.getByRole("button", { name: /Сбросить демо/i });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+
+    expect(mockedApi.resetDemo).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /Сбрасываем демо/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Выполняем/i })).toBeDisabled();
+
+    reset.resolve({ reset: true });
+
+    await screen.findByText("Демо восстановлено в исходное состояние.");
+    expect(mockedApi.getShipmentDetail).toHaveBeenLastCalledWith("reset-1");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).toBeInTheDocument();
+    expect(screen.getByText("Ожидает прибытия на погрузку — текущий этап")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+  });
+
+  it("does not start a workflow transition while demo reset is active", async () => {
+    const reset = deferred<Awaited<ReturnType<typeof api.resetDemo>>>();
+    mockedApi.resetDemo.mockReturnValueOnce(reset.promise);
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })]
+      })
+      .mockResolvedValueOnce({
+        shipments: [shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" })]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockResolvedValueOnce(detailFor("reset-1", {
+        shipment: shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" })
+      }));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i });
+    fireEvent.click(screen.getByRole("button", { name: /Начать демо заново/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Выполняем/i }));
+
+    expect(mockedApi.executeShipmentAction).not.toHaveBeenCalled();
+
+    reset.resolve({ reset: true });
+    await screen.findByText("Демо восстановлено в исходное состояние.");
+  });
+
+  it("restores controls and preserves the current UI when demo reset fails", async () => {
+    mockedApi.resetDemo.mockRejectedValueOnce(new EtrnFlowApiError("demo_reset_unavailable"));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Начать демо заново/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+
+    await screen.findByText("Не удалось сбросить демо-данные. Повторите попытку.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getAllByText("Ожидает прибытия на погрузку").length).toBeGreaterThan(0);
+  });
+
+  it("restores controls and preserves valid UI when post-reset refresh fails", async () => {
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockRejectedValueOnce(new EtrnFlowApiError("shipment_list_unavailable"));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Начать демо заново/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+
+    await screen.findByText("Не удалось загрузить список перевозок.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-002/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+  });
+
+  it("preserves the previous complete UI snapshot when reset detail refresh fails", async () => {
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" }),
+          shipmentSummary({ id: "reset-2", reference: "DEMO-002", state: "in_transit" })
+        ]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1", {
+        events: [
+          shipmentEvent({ id: "event-1", sequence: 1, eventType: "shipment_created" }),
+          shipmentEvent({ id: "event-2", sequence: 2, eventType: "dispatch" })
+        ]
+      }))
+      .mockRejectedValueOnce(new EtrnFlowApiError("shipment_detail_unavailable"));
+
+    render(<App />);
+
+    await screen.findByText("Подтвердить прибытие автомобиля");
+    fireEvent.click(screen.getByRole("button", { name: /Начать демо заново/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+
+    await screen.findByText("Не удалось загрузить карточку перевозки.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-002/i })).not.toBeDisabled();
+    expect(screen.queryByRole("button", { name: /reset-1/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+    expect(within(getTimelineItems()[0]).getByText("#1")).toBeInTheDocument();
+    expect(within(getTimelineItems()[1]).getByText("#2")).toBeInTheDocument();
+  });
+
+  it("prevents a stale detail request from overwriting a successful post-reset snapshot", async () => {
+    const staleDetail = deferred<Awaited<ReturnType<typeof api.getShipmentDetail>>>();
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" }),
+          shipmentSummary({ id: "reset-2", reference: "DEMO-002", state: "in_transit" })
+        ]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockReturnValueOnce(staleDetail.promise)
+      .mockResolvedValueOnce(detailFor("reset-1", {
+        shipment: shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" }),
+        events: [
+          shipmentEvent({ id: "reset-event-1", sequence: 10, eventType: "shipment_created" }),
+          shipmentEvent({ id: "reset-event-2", sequence: 11, eventType: "dispatch" })
+        ]
+      }));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /DEMO-001/i });
+    fireEvent.click(screen.getByRole("button", { name: /DEMO-002/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Начать демо заново/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+
+    await screen.findByText("Демо восстановлено в исходное состояние.");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    staleDetail.resolve(detailFor("shipment-2"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    });
+    expect(screen.getAllByText("DEMO-001").length).toBeGreaterThan(0);
+    expect(screen.queryByText("DEMO-002")).toBeInTheDocument();
+    expect(within(getTimelineItems()[0]).getByText("#10")).toBeInTheDocument();
+    expect(within(getTimelineItems()[1]).getByText("#11")).toBeInTheDocument();
   });
 
   it("keeps action controls disabled until the refreshed state and next action are available", async () => {

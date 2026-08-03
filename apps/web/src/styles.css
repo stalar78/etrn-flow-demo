@@ -345,6 +345,18 @@ dd {
   background: #fff8f5;
 }
 
+.confirmation-actions,
+.reset-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.confirmation-note .confirmation-actions {
+  padding: 0;
+}
+
 .secondary-action {
   padding: var(--space-2) var(--space-3);
   background: var(--color-accent);

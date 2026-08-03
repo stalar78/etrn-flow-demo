@@ -154,6 +154,7 @@ export const apiErrorMessages: Record<string, string> = {
   transition_unavailable: "Не удалось выполнить действие. Повторите попытку позже.",
   guest_session_unavailable: "Не удалось подготовить демо-сеанс. Повторите попытку.",
   demo_bootstrap_unavailable: "Не удалось создать демо-данные. Повторите попытку.",
+  demo_reset_unavailable: "Не удалось сбросить демо-данные. Повторите попытку.",
   shipment_list_unavailable: "Не удалось загрузить список перевозок.",
   shipment_detail_unavailable: "Не удалось загрузить карточку перевозки.",
   request_failed: "API временно недоступен. Проверьте запуск сервера.",

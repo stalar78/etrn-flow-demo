@@ -4,7 +4,8 @@ import {
   EtrnFlowApiError,
   executeShipmentAction,
   getShipmentDetail,
-  listShipments
+  listShipments,
+  resetDemo
 } from "./etrn-flow-api";
 
 describe("ETRN Flow API client", () => {
@@ -83,6 +84,31 @@ describe("ETRN Flow API client", () => {
     });
     expect(String(options.body)).not.toContain("guestSessionId");
     expect(String(options.body)).not.toContain("nextState");
+  });
+
+  it("posts demo reset without a request body", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ reset: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(resetDemo()).resolves.toEqual({ reset: true });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/demo/reset", expect.objectContaining({
+      body: undefined,
+      credentials: "same-origin",
+      headers: undefined,
+      method: "POST"
+    }));
+  });
+
+  it("maps demo reset unavailable into a controlled API error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(
+      { error: "demo_reset_unavailable" },
+      { ok: false, status: 503 }
+    )));
+
+    await expect(resetDemo()).rejects.toMatchObject({
+      code: "demo_reset_unavailable"
+    });
   });
 
   it("rejects unexpected successful response shapes", async () => {

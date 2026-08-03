@@ -8,6 +8,7 @@ import type {
 } from "@etrn-flow/domain";
 
 import { DemoBootstrapService, demoShipmentDefinitions } from "./demo-bootstrap.js";
+import { DemoResetService } from "./demo-bootstrap.js";
 import type { PostgresRepositories } from "../persistence/postgres/repositories.js";
 
 describe("DemoBootstrapService", () => {
@@ -84,6 +85,31 @@ describe("DemoBootstrapService", () => {
 
     await expect(service.bootstrap("session-1")).rejects.toThrow("transaction failed");
   });
+
+  it("resets a session by deleting scoped demo records and recreating deterministic shipments", async () => {
+    const repositories = createRepositoryStub();
+    const service = new DemoResetService(repositories);
+
+    const result = await service.reset("session-1");
+
+    expect(result).toEqual({ reset: true });
+    expect(repositories.demoReset.lockGuestSession).toHaveBeenCalledWith("session-1");
+    expect(repositories.demoReset.deleteEventsByGuestSession).toHaveBeenCalledWith("session-1");
+    expect(repositories.demoReset.deleteShipmentsByGuestSession).toHaveBeenCalledWith("session-1");
+    expect(createdReferences(repositories)).toEqual(["DEMO-001", "DEMO-002", "DEMO-003"]);
+    expect(repositories.shipmentEvents.append).toHaveBeenCalledTimes(
+      demoShipmentDefinitions.reduce((total, definition) => total + definition.events.length, 0)
+    );
+  });
+
+  it("propagates reset transaction failures as infrastructure failures", async () => {
+    const repositories = createRepositoryStub({
+      transactionError: new Error("reset failed")
+    });
+    const service = new DemoResetService(repositories);
+
+    await expect(service.reset("session-1")).rejects.toThrow("reset failed");
+  });
 });
 
 function createRepositoryStub(options: { existingCount?: number; transactionError?: Error } = {}) {
@@ -99,6 +125,11 @@ function createRepositoryStub(options: { existingCount?: number; transactionErro
 
   Object.assign(repositories, {
     guestSessions: {} as GuestSessionRepository,
+    demoReset: {
+      deleteEventsByGuestSession: vi.fn(),
+      deleteShipmentsByGuestSession: vi.fn(),
+      lockGuestSession: vi.fn()
+    },
     shipments: {
       create: vi.fn(async (input: CreateShipmentInput) => {
         shipmentNumber += 1;
