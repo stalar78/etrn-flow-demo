@@ -3,14 +3,14 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–09 are accepted and merged into `main`.
-- Latest accepted product-code merge: Stage 09, commit `1b70452edb4e5305955d80409dc655a5e1d18702`.
-- `PROJECT_BLUEPRINT.md` was synchronized after Stage 09 in commit `e874dfb936b4384ac831021b9f8763d140a52dff`.
-- Current next stage: Stage 10 controlled demo reset/restart.
+- Stages 03–10 are accepted and merged into `main`.
+- Latest accepted product-code merge: Stage 10, commit `497afc9ee431022c9cf7286ae229a301ac48cc38`.
+- `PROJECT_BLUEPRINT.md` was synchronized after Stage 10 in commit `7f2f17c29c7c4e1dabc3defe9a5bff947cdf7a8f`.
+- Current next stage: Stage 11 guest-session quotas and basic public abuse controls.
 
 ## Current stage
 
-`Sequential workflow demo accepted → Repeatable reset/restart next`
+`Controlled demo reset accepted → Quotas and public abuse controls next`
 
 ## Product boundary
 
@@ -43,7 +43,7 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
 - Backend-issued httpOnly guest-session cookie.
 - Default 24-hour TTL.
 - Missing, malformed, unknown and expired sessions are replaced.
-- Reads and transitions are scoped by server-resolved guest session.
+- Reads, transitions and reset operations are scoped by server-resolved guest session.
 - Frontend does not receive or send a guest-session identifier as application data.
 - `/health` is isolated from session/database behavior.
 
@@ -78,30 +78,48 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
   - `loading → in_transit` via `completeLoading` / `warehouse`;
   - `draft → cancelled` via confirmed `cancel` / `dispatcher`.
 
-### Sequential frontend workflow demo
+### Controlled demo reset
+
+- `POST /api/demo/reset`.
+- Request has no application payload.
+- Guest session is derived only from the existing server-issued cookie.
+- Dedicated `DemoResetService` owns orchestration.
+- The whole reset runs in one PostgreSQL transaction.
+- Same-session reset requests are serialized through `pg_advisory_xact_lock`.
+- Only current-session shipment events and shipments are deleted.
+- The existing deterministic bootstrap definitions are reused.
+- Exact post-reset dataset:
+  - `DEMO-001` → `awaiting_loading`;
+  - `DEMO-002` → `in_transit`;
+  - `DEMO-003` → `completed`.
+- Coherent event histories are recreated from the accepted bootstrap definitions.
+- Controlled persistence/service failure response: `demo_reset_unavailable`.
+- Repeated and concurrent reset requests do not create duplicate shipments or event chains.
+- Reset of one session does not alter another session.
+
+### Frontend workflow and reset behavior
 
 - Russian operational workspace with same-origin typed API client.
-- Initialization sequence remains health → session → bootstrap → list → deterministic selection → detail.
+- Initialization remains health → session → bootstrap → list → deterministic selection → detail.
 - Default selection prefers `DEMO-001`.
-- Action availability is derived from the current server-returned shipment state.
-- `DEMO-001` supports the accepted sequential path:
-  - `awaiting_loading → loading → in_transit`.
-- The previous action disappears only after server-confirmed refresh.
+- Action availability is derived from server-returned shipment state.
+- `DEMO-001` supports `awaiting_loading → loading → in_transit`.
 - Draft state presents prepare-dispatch and confirmed destructive cancellation.
 - Workflow progress renders the accepted happy path without pretending unsupported states are linear.
-- `completed`, `cancelled` and `attention_required` are presented separately as terminal/branch states.
-- No optimistic state mutation.
-- Double-submit is guarded both by React phase and an immediate in-flight ref.
-- Shipment switching is disabled while a transition is pending.
-- Conflict and invalid-transition responses trigger a controlled refresh.
-- A failure of that recovery refresh exits `transitioning`, restores controls and shows a controlled Russian error.
-- Abort after entering `transitioning` also restores a usable phase.
-- Request-version and selection guards prevent stale detail or transition refresh from overwriting the current selection.
-- Timeline remains hidden defensively when detail does not match the selected shipment.
+- `completed`, `cancelled` and `attention_required` are separate terminal/branch presentations.
+- No optimistic workflow or reset mutation.
+- Reset requires explicit confirmation.
+- Reset and workflow transitions mutually exclude each other in UI controls and immediate handler guards.
+- Shipment switching and conflicting controls are disabled while transition or reset is pending.
+- After successful reset, the frontend fetches list and detail first, then applies one complete workspace snapshot.
+- `DEMO-001` is selected after reset when present.
+- If post-reset list or detail refresh fails, the latest complete valid list, selection, detail, action and timeline remain visible.
+- A detail request started before reset cannot overwrite the accepted post-reset snapshot.
+- Controlled errors restore a usable phase and do not leak rejected promises.
 
-## Workflow invariant
+## Core invariants
 
-Every state change must follow:
+Every workflow state change must follow:
 
 ```text
 named action
@@ -117,7 +135,18 @@ named action
 
 Direct status assignment through an API or frontend is forbidden.
 
-## Current frontend invariant
+Reset must follow:
+
+```text
+server-resolved guest session
+→ transaction
+→ same-session advisory lock
+→ delete scoped events
+→ delete scoped shipments
+→ recreate deterministic dataset and histories
+→ commit
+→ authoritative frontend refresh
+```
 
 When detail is displayed:
 
@@ -125,9 +154,9 @@ When detail is displayed:
 selectedShipmentId === detail.shipment.id
 ```
 
-Stale normal-detail requests, transition refreshes and conflict refreshes must not violate this invariant.
+Stale normal-detail, transition-refresh, conflict-refresh and pre-reset detail requests must not violate this invariant.
 
-After any non-abort transition completion, the interface must not remain in `phase === "transitioning"`.
+After any completed or failed transition/reset flow, the interface must not remain stuck in `transitioning` or `resetting`.
 
 ## Testing state
 
@@ -140,56 +169,62 @@ Accepted coverage includes:
 - shipment list/detail API;
 - transition success, forbidden access, invalid transition, session isolation and concurrency conflict;
 - frontend API credentials and relative endpoints;
-- response validation and controlled API errors;
+- response validation and safe request payloads;
 - transition payload limited to `action` and `actorRole`;
+- reset request without client-selected session or state data;
 - initialization and deterministic `DEMO-001` selection;
 - Russian presentation labels and synthetic-data disclaimer;
-- event ordering;
 - sequential second action and refreshed action availability;
 - workflow progress and terminal/exception presentation;
 - confirmed cancellation;
-- double-submit protection;
-- initialization retry;
-- normal stale-detail protection;
-- stale success/conflict transition-refresh protection;
-- conflict and invalid-transition recovery-refresh failure handling;
-- restoration of list and action interaction after transition failures.
+- transition and reset double-submit protection;
+- reset confirmation and cancellation;
+- exact reset restoration of all three deterministic shipments;
+- removal of pre-reset transition/cancellation history;
+- coherent recreated event chains;
+- repeated and concurrent reset safety;
+- reset isolation between guest sessions;
+- controlled reset failure mapping;
+- atomic post-reset list/detail snapshot application;
+- preservation of the previous complete UI snapshot when post-reset detail refresh fails;
+- stale pre-reset detail protection;
+- restoration of list, action and reset interaction after failures.
 
-Latest accepted CI for Stage 09: run #28, successful after rerunning one flaky concurrency integration assertion.
+Latest accepted CI for Stage 10: run #32, successful.
 
-Known CI issue to address separately:
+Known CI issue to address deliberately:
 
-- the existing concurrency integration test sometimes receives `invalid_transition` instead of `transition_conflict` depending on whether the losing request validates before or after the winning transaction commits;
-- both outcomes preserve the core invariant that only one transition is applied;
-- the test should be stabilized deliberately without weakening backend guarantees.
+- an existing transition concurrency integration test can receive `invalid_transition` instead of `transition_conflict` depending on whether the losing request validates before or after the winning transaction commits;
+- both outcomes preserve the invariant that only one transition is applied;
+- the assertion should be stabilized without weakening backend guarantees.
 
-## Next controlled stage — Stage 10
+## Next controlled stage — Stage 11
 
-Add a repeatable demo reset/restart flow so a visitor can restore the deterministic scenario after advancing or cancelling shipments.
+Introduce guest-session quotas and basic public abuse controls before exposing the demo publicly.
 
-Before implementation, inspect the current bootstrap service, repositories, transaction boundaries, event schema and frontend stale-request protections. Do not implement reset as direct status editing.
+Before implementation, inspect the current guest-session schema, transition/reset transaction boundaries, Fastify plugin setup, production proxy assumptions and error-envelope conventions.
 
-Stage 10 should:
+Stage 11 should:
 
-- define exact reset semantics for the current guest session;
-- restore the deterministic three-shipment dataset and coherent histories;
-- remain server-controlled and transactionally safe;
-- be idempotent and safe under concurrent reset requests;
-- preserve guest-session isolation;
-- avoid accepting arbitrary shipment states, references, event payloads or seed data from the browser;
-- provide a clear frontend reset control with explicit confirmation;
-- disable conflicting interactions while reset is in flight;
-- refresh list, deterministic selection, detail, actions, progress and timeline after success;
-- preserve current UI state and restore controls on failure;
-- preserve request-version and selection invariants;
-- add focused backend integration and frontend tests.
+- define explicit server-side per-session limits for workflow transitions and reset requests;
+- decide whether shipment/event limits are fixed invariants of the deterministic dataset or separately counted resources;
+- enforce limits atomically so concurrent requests cannot bypass them;
+- preserve bootstrap, transition, reset and cross-session isolation behavior;
+- add stable controlled API errors for exhausted quotas;
+- add minimal public rate limiting at an appropriate HTTP boundary;
+- avoid trusting browser-provided counters, session identifiers or limit data;
+- preserve the current deterministic reset capability;
+- add clear Russian frontend error messages and recovery behavior;
+- add PostgreSQL-backed integration tests for exhaustion, isolation, concurrency and reset interaction;
+- keep configuration explicit and suitable for later production tuning.
 
-Stage 10 should not yet implement:
+Stage 11 should not yet implement:
 
-- session quotas or public rate limiting;
-- expired-session cleanup jobs;
-- shipment creation or arbitrary editing;
-- search, filters, dashboard analytics or charts;
+- authentication or production RBAC;
+- billing or plans;
+- a generic quota-management platform;
+- distributed rate limiting infrastructure unless the accepted deployment topology requires it;
+- analytics dashboards;
 - attachments, PDF or signatures;
 - real operator integration;
 - production deployment;
@@ -197,29 +232,29 @@ Stage 10 should not yet implement:
 
 ## Near-term stage order
 
-After Stage 10, likely controlled steps are:
+After Stage 11, likely controlled steps are:
 
-1. guest-session quotas and public abuse controls;
-2. stabilization of concurrency CI semantics if not handled sooner;
-3. final UX/accessibility and browser-level happy-path audit;
-4. production Compose/Nginx hardening;
-5. deployment and smoke/security audit;
-6. portfolio presentation and public documentation.
+1. stabilization of concurrency CI semantics if not handled during Stage 11;
+2. final UX/accessibility and browser-level happy-path audit;
+3. production Compose/Nginx hardening;
+4. deployment and smoke/security audit;
+5. portfolio presentation and public documentation.
 
 ## Delivery estimate
 
-After Stage 09:
+After Stage 10:
 
-- technical demo MVP: approximately 72–78% complete;
-- credible public portfolio demo: approximately 58–65% complete;
-- working public demo MVP: roughly 2–4 focused working days if scope remains controlled;
-- polished portfolio release: roughly 5–8 focused working days;
+- technical demo MVP: approximately 78–84% complete;
+- credible public portfolio demo: approximately 64–72% complete;
+- working public demo MVP: roughly 2–3 focused working days if scope remains controlled;
+- polished portfolio release: roughly 4–7 focused working days;
 - real customer pilot is a separate 3–6 week effort depending on authentication, integrations and operational requirements.
 
 ## Agent workflow rules
 
 - GPT owns product direction, architecture review, scope and documentation.
-- Codex prompts are written in English.
+- Codex prompts are written in Russian.
+- File names, paths, components, variables and technical entities remain exactly as used in the codebase.
 - Codex changes code and approved technical configuration only.
 - Codex must not edit documentation or Project Brain unless explicitly authorized.
 - Codex must not commit, push or deploy.
@@ -232,12 +267,12 @@ After Stage 09:
 
 - accidental positioning as an accredited operator;
 - TMS scope expansion;
-- reset implemented as arbitrary state mutation;
-- reset breaking event-chain coherence;
-- cross-session reset leakage;
-- stale frontend data after reset;
-- demo exhaustion without a controlled reset;
 - public abuse before quotas/rate limiting;
+- counters that can be bypassed by concurrency;
+- reset quota semantics that make the demo unusable;
+- rate limiting that blocks normal demo use behind a shared proxy;
+- cross-session quota leakage;
+- stale frontend data after controlled errors;
 - flaky concurrency assertion producing unreliable CI signals;
 - premature real-integration claims.
 
