@@ -111,6 +111,23 @@ describe("ETRN Flow API client", () => {
     });
   });
 
+  it("maps abuse-control 429 envelopes into controlled API errors", async () => {
+    for (const code of [
+      "guest_session_quota_exceeded",
+      "demo_reset_quota_exceeded",
+      "guest_session_rate_limited",
+      "guest_session_usage_unavailable"
+    ]) {
+      vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(
+        { error: code },
+        { ok: false, status: code === "guest_session_usage_unavailable" ? 503 : 429 }
+      )));
+
+      await expect(listShipments()).rejects.toMatchObject({ code });
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("rejects unexpected successful response shapes", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ shipments: [{ state: "raw" }] })));
 

@@ -191,6 +191,11 @@ function createRepositoryStub(options: {
 
   Object.assign(repositories, {
     guestSessions: {} as GuestSessionRepository,
+    guestSessionUsage: {
+      consumeBurst: vi.fn(),
+      consumeMutationQuota: vi.fn(),
+      consumeResetQuota: vi.fn()
+    },
     shipments: {
       create: vi.fn(async (input: CreateShipmentInput) =>
         shipmentRecord({

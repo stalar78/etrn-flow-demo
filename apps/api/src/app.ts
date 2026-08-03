@@ -5,6 +5,10 @@ import { z } from "zod";
 
 import { healthResponseSchema } from "@etrn-flow/shared";
 
+import {
+  getAbuseControlConfig,
+  type AbuseControlConfig
+} from "./config/abuse-control.js";
 import { getSessionConfig, type SessionConfig } from "./config/session.js";
 import {
   createDatabaseConnection,
@@ -13,6 +17,10 @@ import {
 import { createPostgresRepositories } from "./persistence/postgres/repositories.js";
 import { DemoBootstrapService, DemoResetService } from "./services/demo-bootstrap.js";
 import { GuestSessionService, type Clock } from "./services/guest-session.js";
+import {
+  GuestSessionUsageService,
+  GuestSessionUsageUnavailableError
+} from "./services/guest-session-usage.js";
 import { ShipmentTransitionService } from "./services/shipment-transition.js";
 import {
   shipmentWorkflowActions,
@@ -24,6 +32,7 @@ import { demoRoles } from "@etrn-flow/shared";
 export type AppOptions = {
   enableGuestSessions?: boolean;
   database?: AppDatabase;
+  abuseControlConfig?: AbuseControlConfig;
   sessionConfig?: SessionConfig;
   clock?: Clock;
 };
@@ -59,6 +68,7 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
 
   if (options.enableGuestSessions) {
     const sessionConfig = options.sessionConfig ?? getSessionConfig();
+    const abuseControlConfig = options.abuseControlConfig ?? getAbuseControlConfig();
     const database = options.database ?? createDatabaseConnection();
     const repositories = createPostgresRepositories(database.db);
     const guestSessionService = new GuestSessionService(
@@ -66,9 +76,14 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
       { ttlSeconds: sessionConfig.ttlSeconds },
       options.clock
     );
-    const demoBootstrapService = new DemoBootstrapService(repositories);
-    const demoResetService = new DemoResetService(repositories);
-    const shipmentTransitionService = new ShipmentTransitionService(repositories);
+    const guestSessionUsageService = new GuestSessionUsageService(
+      repositories,
+      abuseControlConfig,
+      options.clock
+    );
+    const demoBootstrapService = new DemoBootstrapService(repositories, guestSessionUsageService);
+    const demoResetService = new DemoResetService(repositories, guestSessionUsageService);
+    const shipmentTransitionService = new ShipmentTransitionService(repositories, guestSessionUsageService);
 
     app.addHook("onClose", async () => {
       if (!options.database) {
@@ -116,6 +131,30 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
       return undefined;
     };
 
+    const consumeBurstSlot = async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const result = await guestSessionUsageService.consumeBurst(requireGuestSession(request).id);
+
+        if (!result.allowed) {
+          reply.header("Retry-After", String(Math.max(1, result.retryAfterSeconds)));
+
+          return reply.code(429).send({
+            error: "guest_session_rate_limited"
+          });
+        }
+      } catch (error) {
+        request.log.error({ error }, "Failed to check guest session usage");
+
+        return reply.code(503).send({
+          error: "guest_session_usage_unavailable"
+        });
+      }
+
+      return undefined;
+    };
+
+    const protectedMutationPreHandlers = [resolveGuestSession, consumeBurstSlot];
+
     app.get("/api/session", { preHandler: resolveGuestSession }, async (request) => {
       const guestSession = requireGuestSession(request);
 
@@ -128,14 +167,25 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
       };
     });
 
-    app.post("/api/demo/bootstrap", { preHandler: resolveGuestSession }, async (request, reply) => {
+    app.post("/api/demo/bootstrap", { preHandler: protectedMutationPreHandlers }, async (request, reply) => {
       try {
         const result = await demoBootstrapService.bootstrap(requireGuestSession(request).id);
+        if ("allowed" in result && !result.allowed) {
+          return sendQuotaError(reply, result.kind);
+        }
 
         return {
           demo: result
         };
       } catch (error) {
+        if (error instanceof GuestSessionUsageUnavailableError) {
+          request.log.error({ error }, "Failed to check guest session usage");
+
+          return reply.code(503).send({
+            error: "guest_session_usage_unavailable"
+          });
+        }
+
         request.log.error({ error }, "Failed to bootstrap demo shipments");
 
         return reply.code(503).send({
@@ -144,10 +194,23 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
       }
     });
 
-    app.post("/api/demo/reset", { preHandler: resolveGuestSession }, async (request, reply) => {
+    app.post("/api/demo/reset", { preHandler: protectedMutationPreHandlers }, async (request, reply) => {
       try {
-        return await demoResetService.reset(requireGuestSession(request).id);
+        const result = await demoResetService.reset(requireGuestSession(request).id);
+        if ("allowed" in result && !result.allowed) {
+          return sendQuotaError(reply, result.kind);
+        }
+
+        return result;
       } catch (error) {
+        if (error instanceof GuestSessionUsageUnavailableError) {
+          request.log.error({ error }, "Failed to check guest session usage");
+
+          return reply.code(503).send({
+            error: "guest_session_usage_unavailable"
+          });
+        }
+
         request.log.error({ error }, "Failed to reset demo shipments");
 
         return reply.code(503).send({
@@ -214,7 +277,7 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
       }
     });
 
-    app.post("/api/shipments/:shipmentId/actions", { preHandler: resolveGuestSession }, async (request, reply) => {
+    app.post("/api/shipments/:shipmentId/actions", { preHandler: protectedMutationPreHandlers }, async (request, reply) => {
       const parsedParams = shipmentParamsSchema.safeParse(request.params);
 
       if (!parsedParams.success) {
@@ -261,8 +324,18 @@ export function createApp(options: AppOptions = {}): FastifyInstance {
             return reply.code(409).send({
               error: "transition_conflict"
             });
+          case "mutation_quota":
+            return sendQuotaError(reply, result.kind);
         }
       } catch (error) {
+        if (error instanceof GuestSessionUsageUnavailableError) {
+          request.log.error({ error }, "Failed to check guest session usage");
+
+          return reply.code(503).send({
+            error: "guest_session_usage_unavailable"
+          });
+        }
+
         request.log.error({ error }, "Failed to execute shipment transition");
 
         return reply.code(503).send({
@@ -294,6 +367,14 @@ function requireGuestSession(request: FastifyRequest) {
   }
 
   return request.guestSession;
+}
+
+function sendQuotaError(reply: FastifyReply, kind: "mutation_quota" | "reset_quota") {
+  return reply.code(429).send({
+    error: kind === "reset_quota"
+      ? "demo_reset_quota_exceeded"
+      : "guest_session_quota_exceeded"
+  });
 }
 
 function toShipmentDto(record: ShipmentRecord) {

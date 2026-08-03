@@ -704,6 +704,69 @@ describe("App", () => {
     expect(screen.getAllByText("Ожидает прибытия на погрузку").length).toBeGreaterThan(0);
   });
 
+  it("shows a quota error for transitions without refreshing or changing the current snapshot", async () => {
+    mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("guest_session_quota_exceeded"));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+
+    await screen.findByText("Лимит изменений в этом демо-сеансе исчерпан. Начните новый сеанс позже.");
+    expect(mockedApi.listShipments).toHaveBeenCalledTimes(1);
+    expect(mockedApi.getShipmentDetail).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(getTimelineItems()).toHaveLength(2);
+  });
+
+  it("shows a rate-limit error for transitions and does not retry automatically", async () => {
+    mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("guest_session_rate_limited"));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
+
+    await screen.findByText("Слишком много действий подряд. Подождите немного и повторите попытку.");
+    expect(mockedApi.executeShipmentAction).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+  });
+
+  it("shows reset quota errors without refreshing the workspace", async () => {
+    mockedApi.resetDemo.mockRejectedValueOnce(new EtrnFlowApiError("demo_reset_quota_exceeded"));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Начать демо заново/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+
+    await screen.findByText("Лимит перезапусков демо в этом сеансе исчерпан.");
+    expect(mockedApi.resetDemo).toHaveBeenCalledTimes(1);
+    expect(mockedApi.listShipments).toHaveBeenCalledTimes(1);
+    expect(mockedApi.getShipmentDetail).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+  });
+
+  it("shows reset general quota and usage-unavailable errors with controls restored", async () => {
+    mockedApi.resetDemo
+      .mockRejectedValueOnce(new EtrnFlowApiError("guest_session_quota_exceeded"))
+      .mockRejectedValueOnce(new EtrnFlowApiError("guest_session_usage_unavailable"));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Начать демо заново/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+
+    await screen.findByText("Лимит изменений в этом демо-сеансе исчерпан. Начните новый сеанс позже.");
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+
+    await screen.findByText("Не удалось проверить ограничения демо. Повторите попытку позже.");
+    expect(mockedApi.resetDemo).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeDisabled();
+  });
+
   it("ignores a stale transition-conflict refresh detail that does not match the selected shipment", async () => {
     mockedApi.executeShipmentAction.mockRejectedValueOnce(new EtrnFlowApiError("transition_conflict"));
     mockedApi.listShipments

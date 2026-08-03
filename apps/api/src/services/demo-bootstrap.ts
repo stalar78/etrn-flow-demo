@@ -5,6 +5,7 @@ import type {
 } from "@etrn-flow/domain";
 
 import type { PostgresRepositories } from "../persistence/postgres/repositories.js";
+import type { GuestSessionUsageService, QuotaGuardResult } from "./guest-session-usage.js";
 
 type DemoShipmentDefinition = {
   reference: string;
@@ -137,30 +138,15 @@ export const demoShipmentDefinitions = [
 ] satisfies DemoShipmentDefinition[];
 
 export class DemoBootstrapService {
-  constructor(private readonly repositories: PostgresRepositories) {}
+  constructor(
+    private readonly repositories: PostgresRepositories,
+    private readonly usageService?: GuestSessionUsageService
+  ) {}
 
-  async bootstrap(guestSessionId: string): Promise<DemoBootstrapResult> {
+  async bootstrap(guestSessionId: string): Promise<DemoBootstrapResult | QuotaGuardResult> {
     try {
       return await this.repositories.transaction(async (transactionalRepositories) => {
-        const existingCount =
-          await transactionalRepositories.shipments.countByReferences({
-            guestSessionId,
-            references: demoReferences
-          });
-
-        if (existingCount === demoShipmentDefinitions.length) {
-          return {
-            created: false,
-            shipmentCount: existingCount
-          };
-        }
-
-        await createDemoShipments(transactionalRepositories, guestSessionId);
-
-        return {
-          created: true,
-          shipmentCount: demoShipmentDefinitions.length
-        };
+        return this.bootstrapInTransaction(transactionalRepositories, guestSessionId);
       });
     } catch (error) {
       const existingCount = await this.repositories.shipments.countByReferences({
@@ -178,19 +164,64 @@ export class DemoBootstrapService {
       throw error;
     }
   }
+
+  async bootstrapInTransaction(
+    repositories: PostgresRepositories,
+    guestSessionId: string
+  ): Promise<DemoBootstrapResult | QuotaGuardResult> {
+    const existingCount =
+      await repositories.shipments.countByReferences({
+        guestSessionId,
+        references: demoReferences
+      });
+
+    if (existingCount === demoShipmentDefinitions.length) {
+      return {
+        created: false,
+        shipmentCount: existingCount
+      };
+    }
+
+    const quota = await this.usageService?.consumeMutationQuota(repositories, guestSessionId);
+    if (quota && !quota.allowed) {
+      return quota;
+    }
+
+    await createDemoShipments(repositories, guestSessionId);
+
+    return {
+      created: true,
+      shipmentCount: demoShipmentDefinitions.length
+    };
+  }
 }
 
 export class DemoResetService {
-  constructor(private readonly repositories: PostgresRepositories) {}
+  constructor(
+    private readonly repositories: PostgresRepositories,
+    private readonly usageService?: GuestSessionUsageService
+  ) {}
 
-  async reset(guestSessionId: string): Promise<{ reset: true }> {
-    await this.repositories.transaction(async (transactionalRepositories) => {
-      await transactionalRepositories.demoReset.lockGuestSession(guestSessionId);
-      await transactionalRepositories.demoReset.deleteEventsByGuestSession(guestSessionId);
-      await transactionalRepositories.demoReset.deleteShipmentsByGuestSession(guestSessionId);
-      await createDemoShipments(transactionalRepositories, guestSessionId);
-    });
+  async reset(guestSessionId: string): Promise<{ reset: true } | QuotaGuardResult> {
+    return this.repositories.transaction((transactionalRepositories) =>
+      this.resetInTransaction(transactionalRepositories, guestSessionId)
+    );
+  }
 
+  async resetInTransaction(
+    repositories: PostgresRepositories,
+    guestSessionId: string
+  ): Promise<{ reset: true } | QuotaGuardResult> {
+    await repositories.demoReset.lockGuestSession(guestSessionId);
+
+    const quota = await this.usageService?.consumeResetQuota(repositories, guestSessionId);
+    if (quota && !quota.allowed) {
+      return quota;
+    }
+
+    await repositories.demoReset.deleteEventsByGuestSession(guestSessionId);
+    await repositories.demoReset.deleteShipmentsByGuestSession(guestSessionId);
+    await createDemoShipments(repositories, guestSessionId);
     return { reset: true };
   }
 }

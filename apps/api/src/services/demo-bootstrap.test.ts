@@ -125,6 +125,11 @@ function createRepositoryStub(options: { existingCount?: number; transactionErro
 
   Object.assign(repositories, {
     guestSessions: {} as GuestSessionRepository,
+    guestSessionUsage: {
+      consumeBurst: vi.fn(),
+      consumeMutationQuota: vi.fn(),
+      consumeResetQuota: vi.fn()
+    },
     demoReset: {
       deleteEventsByGuestSession: vi.fn(),
       deleteShipmentsByGuestSession: vi.fn(),
