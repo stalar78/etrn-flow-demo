@@ -1157,11 +1157,24 @@ describe("shipment read API", () => {
   });
 
   it("allows only one of two concurrent transitions from the same expected state", async () => {
-    const app = createTestApp();
+    const app = createTestApp({
+      abuseControlConfig: abuseConfig({ mutationLimit: 10, rateMaxRequests: 20 })
+    });
     const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
     const cookie = bootstrap.cookies[0];
+    const otherBootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const otherCookie = otherBootstrap.cookies[0];
+    const otherListBefore = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [otherCookie.name]: otherCookie.value }
+    });
+    const otherTarget = await findShipmentByReference(app, otherCookie, "DEMO-001");
+    const otherDetailBefore = await loadShipmentDetail(app, otherCookie, otherTarget.id);
+    const otherUsageBefore = await loadUsage(otherCookie.value);
     const target = await findShipmentByReference(app, cookie, "DEMO-001");
     const before = await loadShipmentDetail(app, cookie, target.id);
+    const usageBefore = await loadUsage(cookie.value);
 
     const responses = await Promise.all([
       app.inject({
@@ -1185,21 +1198,77 @@ describe("shipment read API", () => {
     ]);
 
     const after = await loadShipmentDetail(app, cookie, target.id);
+    const usageAfterRace = await loadUsage(cookie.value);
+    const otherListAfter = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [otherCookie.name]: otherCookie.value }
+    });
+    const otherDetailAfter = await loadShipmentDetail(app, otherCookie, otherTarget.id);
+    const otherUsageAfter = await loadUsage(otherCookie.value);
+    const repeated = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
     await app.close();
 
-    const success = responses.find((response) => response.statusCode === 200);
-    const conflict = responses.find((response) => response.statusCode === 409);
+    const successes = responses.filter((response) => response.statusCode === 200);
+    const controlledLosers = responses.filter((response) => response.statusCode === 409);
 
-    expect(success?.json().transition).toMatchObject({
+    expect(successes).toHaveLength(1);
+    expect(controlledLosers).toHaveLength(1);
+    expect(successes[0]?.json().transition).toMatchObject({
       shipmentId: target.id,
       previousState: "awaiting_loading",
       nextState: "loading"
     });
-    expect(conflict?.json()).toEqual({ error: "transition_conflict" });
+    expect(["transition_conflict", "invalid_transition"]).toContain(
+      controlledLosers[0]?.json().error
+    );
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 409]);
     expect(
       after.events.filter((event: { eventType: string }) => event.eventType === "markVehicleArrived")
     ).toHaveLength(1);
     expect(after.events).toHaveLength(before.events.length + 1);
+    expect(after.shipment.state).toBe("loading");
+    expect(snapshotEventChain(after.events.slice(0, before.events.length))).toEqual(
+      snapshotEventChain(before.events)
+    );
+    expect(after.events.at(-1)).toMatchObject({
+      eventType: "markVehicleArrived",
+      previousState: "awaiting_loading",
+      nextState: "loading"
+    });
+    expect(after.events.map((event: { sequence: number }) => event.sequence)).toEqual(
+      [...after.events.map((event: { sequence: number }) => event.sequence)].sort(
+        (left, right) => left - right
+      )
+    );
+    expect(isContiguousSequence(after.events)).toBe(true);
+    expect(usageAfterRace).toMatchObject({
+      mutation_count: (usageBefore?.mutation_count ?? 0) + 1,
+      reset_count: usageBefore?.reset_count,
+      rate_window_count: (usageBefore?.rate_window_count ?? 0) + 2
+    });
+    expect(repeated.statusCode).toBe(409);
+    expect(repeated.json()).toEqual({ error: "invalid_transition" });
+    expect(snapshotShipments(otherListAfter.json().shipments)).toEqual(
+      snapshotShipments(otherListBefore.json().shipments)
+    );
+    expect(otherDetailAfter.shipment.state).toBe(otherDetailBefore.shipment.state);
+    expect(snapshotEventChain(otherDetailAfter.events)).toEqual(
+      snapshotEventChain(otherDetailBefore.events)
+    );
+    expect(otherUsageAfter).toMatchObject({
+      mutation_count: otherUsageBefore?.mutation_count,
+      reset_count: otherUsageBefore?.reset_count,
+      rate_window_count: otherUsageBefore?.rate_window_count
+    });
   });
 
   it("does not allow one session to open another session shipment", async () => {
@@ -1421,6 +1490,26 @@ function snapshotShipments(
       state: shipment.state
     }))
     .sort((left, right) => left.reference.localeCompare(right.reference));
+}
+
+function snapshotEventChain(
+  events: Array<{
+    eventType: string;
+    nextState: string;
+    previousState: string;
+  }>
+) {
+  return events.map((event) => ({
+    eventType: event.eventType,
+    previousState: event.previousState,
+    nextState: event.nextState
+  }));
+}
+
+function isContiguousSequence(events: Array<{ sequence: number }>) {
+  return events.every((event, index) =>
+    index === 0 || event.sequence === events[index - 1].sequence + 1
+  );
 }
 
 async function loadUsage(guestSessionId: string) {
