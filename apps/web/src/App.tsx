@@ -8,12 +8,14 @@ import {
   getSession,
   getShipmentDetail,
   listShipments,
+  resetDemo,
   type ActorRole,
   type ShipmentDetailResponse,
   type ShipmentSummary,
   type ShipmentWorkflowAction
 } from "./api/etrn-flow-api";
 import { AppHeader } from "./components/AppHeader";
+import { DemoResetControl } from "./components/DemoResetControl";
 import { EventTimeline } from "./components/EventTimeline";
 import { Notice } from "./components/Notice";
 import { ShipmentDetail } from "./components/ShipmentDetail";
@@ -26,11 +28,18 @@ type WorkspacePhase =
   | "initializing"
   | "bootstrapping"
   | "ready"
+  | "resetting"
   | "transitioning"
   | "recoverable_error"
   | "fatal_initialization_error";
 
 type ApiStatus = "checking" | "connected" | "offline";
+
+type WorkspaceSnapshot = {
+  detail: ShipmentDetailResponse | null;
+  selectedShipmentId: string | null;
+  shipments: ShipmentSummary[];
+};
 
 export function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
@@ -39,10 +48,12 @@ export function App() {
   const [message, setMessage] = useState<{ tone: "error" | "success" | "info"; text: string } | null>(null);
   const [phase, setPhase] = useState<WorkspacePhase>("initializing");
   const [confirmationAction, setConfirmationAction] = useState<ShipmentWorkflowAction | null>(null);
+  const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(null);
   const [shipments, setShipments] = useState<ShipmentSummary[]>([]);
   const detailRequestRef = useRef(0);
   const selectedShipmentIdRef = useRef<string | null>(null);
+  const resetInFlightRef = useRef(false);
   const transitionInFlightRef = useRef(false);
 
   const setSelectedShipment = useCallback((shipmentId: string | null) => {
@@ -89,6 +100,7 @@ export function App() {
     setDetail(null);
     setShipments([]);
     setConfirmationAction(null);
+    setIsResetConfirmationOpen(false);
     setSelectedShipment(null);
 
     try {
@@ -145,13 +157,35 @@ export function App() {
     }
   }
 
+  async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
+    const shipmentResponse = await listShipments();
+    const defaultShipment = pickDefaultShipment(shipmentResponse.shipments);
+
+    if (!defaultShipment) {
+      return {
+        detail: null,
+        selectedShipmentId: null,
+        shipments: shipmentResponse.shipments
+      };
+    }
+
+    const nextDetail = await getShipmentDetail(defaultShipment.id);
+
+    return {
+      detail: nextDetail,
+      selectedShipmentId: defaultShipment.id,
+      shipments: shipmentResponse.shipments
+    };
+  }
+
   async function handleSelectShipment(shipmentId: string) {
-    if (phase === "initializing" || phase === "bootstrapping" || phase === "transitioning") {
+    if (phase === "initializing" || phase === "bootstrapping" || phase === "transitioning" || phase === "resetting") {
       return;
     }
 
     setSelectedShipment(shipmentId);
     setConfirmationAction(null);
+    setIsResetConfirmationOpen(false);
     setMessage(null);
     await loadDetail(shipmentId);
     setPhase("ready");
@@ -161,7 +195,7 @@ export function App() {
     action: ShipmentWorkflowAction;
     actorRole: ActorRole;
   }) {
-    if (!selectedShipmentId || transitionInFlightRef.current) {
+    if (!selectedShipmentId || transitionInFlightRef.current || resetInFlightRef.current) {
       return;
     }
 
@@ -214,19 +248,68 @@ export function App() {
     }
   }
 
+  async function handleResetDemo() {
+    if (resetInFlightRef.current || transitionInFlightRef.current) {
+      return;
+    }
+
+    resetInFlightRef.current = true;
+    setPhase("resetting");
+    setConfirmationAction(null);
+    setMessage(null);
+
+    try {
+      await resetDemo();
+      const requestId = detailRequestRef.current + 1;
+      detailRequestRef.current = requestId;
+      const snapshot = await loadWorkspaceSnapshot();
+
+      if (detailRequestRef.current === requestId) {
+        setShipments(snapshot.shipments);
+        setDetail(snapshot.detail);
+        setSelectedShipment(snapshot.selectedShipmentId);
+      }
+      setIsResetConfirmationOpen(false);
+      setPhase("ready");
+      setMessage({
+        tone: "success",
+        text: "Демо восстановлено в исходное состояние."
+      });
+    } catch (error) {
+      if (isAbortError(error)) {
+        setPhase("ready");
+        return;
+      }
+
+      setPhase("recoverable_error");
+      setMessage({
+        tone: "error",
+        text: toRussianErrorMessage(error)
+      });
+    } finally {
+      resetInFlightRef.current = false;
+    }
+  }
+
   const currentDetail = detail?.shipment.id === selectedShipmentId ? detail : null;
   const selectedSummary = currentDetail?.shipment
     ?? shipments.find((shipment) => shipment.id === selectedShipmentId)
     ?? null;
   const isListInteractionDisabled = phase === "initializing"
     || phase === "bootstrapping"
-    || phase === "transitioning";
+    || phase === "transitioning"
+    || phase === "resetting";
+  const isResetInteractionDisabled = phase === "transitioning" || phase === "resetting";
+  const resetPendingLabel = phase === "resetting" ? "Сбрасываем демо..." : "Действие выполняется...";
 
   return (
     <div className="workspace-shell">
       <AppHeader apiStatus={apiStatus} />
 
-      <main className="workspace-main" aria-busy={phase === "initializing" || phase === "bootstrapping"}>
+      <main
+        className="workspace-main"
+        aria-busy={phase === "initializing" || phase === "bootstrapping" || phase === "resetting"}
+      >
         {phase === "initializing" ? (
           <Notice>Подключаемся к API и готовим демо-сеанс...</Notice>
         ) : null}
@@ -258,11 +341,25 @@ export function App() {
             />
 
             <div className="detail-column">
+              <DemoResetControl
+                isConfirming={isResetConfirmationOpen}
+                isInteractionDisabled={isResetInteractionDisabled}
+                onCancel={() => setIsResetConfirmationOpen(false)}
+                onConfirm={() => void handleResetDemo()}
+                onRequestConfirmation={() => {
+                  if (isResetInteractionDisabled) {
+                    return;
+                  }
+
+                  setIsResetConfirmationOpen(true);
+                }}
+                pendingLabel={resetPendingLabel}
+              />
               <ShipmentDetail isLoading={detailLoading} shipment={selectedSummary} />
               <WorkflowProgress state={selectedSummary?.state ?? null} />
               <WorkflowActions
                 confirmationAction={confirmationAction}
-                isTransitioning={phase === "transitioning"}
+                isTransitioning={phase === "transitioning" || phase === "resetting"}
                 onExecute={(input) => void handleExecuteAction(input)}
                 onRequestConfirmation={setConfirmationAction}
                 shipment={selectedSummary}

@@ -155,15 +155,7 @@ export class DemoBootstrapService {
           };
         }
 
-        for (const definition of demoShipmentDefinitions) {
-          const shipment = await transactionalRepositories.shipments.create({
-            guestSessionId,
-            reference: definition.reference,
-            state: definition.state
-          });
-
-          await appendEvents(transactionalRepositories, guestSessionId, shipment, definition);
-        }
+        await createDemoShipments(transactionalRepositories, guestSessionId);
 
         return {
           created: true,
@@ -188,7 +180,37 @@ export class DemoBootstrapService {
   }
 }
 
+export class DemoResetService {
+  constructor(private readonly repositories: PostgresRepositories) {}
+
+  async reset(guestSessionId: string): Promise<{ reset: true }> {
+    await this.repositories.transaction(async (transactionalRepositories) => {
+      await transactionalRepositories.demoReset.lockGuestSession(guestSessionId);
+      await transactionalRepositories.demoReset.deleteEventsByGuestSession(guestSessionId);
+      await transactionalRepositories.demoReset.deleteShipmentsByGuestSession(guestSessionId);
+      await createDemoShipments(transactionalRepositories, guestSessionId);
+    });
+
+    return { reset: true };
+  }
+}
+
 const demoReferences = demoShipmentDefinitions.map((definition) => definition.reference);
+
+async function createDemoShipments(
+  repositories: PostgresRepositories,
+  guestSessionId: string
+) {
+  for (const definition of demoShipmentDefinitions) {
+    const shipment = await repositories.shipments.create({
+      guestSessionId,
+      reference: definition.reference,
+      state: definition.state
+    });
+
+    await appendEvents(repositories, guestSessionId, shipment, definition);
+  }
+}
 
 async function appendEvents(
   repositories: PostgresRepositories,

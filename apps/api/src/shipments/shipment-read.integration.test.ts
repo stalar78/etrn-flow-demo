@@ -89,6 +89,142 @@ describe("shipment read API", () => {
     expect(new Set(list.json().shipments.map((shipment: { reference: string }) => shipment.reference)).size).toBe(3);
   });
 
+  it("resets the current guest session to the deterministic initial dataset", async () => {
+    const app = createTestApp();
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+
+    await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+
+    const reset = await app.inject({
+      method: "POST",
+      url: "/api/demo/reset",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const resetDemo001 = list.json().shipments.find(
+      (shipment: { reference: string }) => shipment.reference === "DEMO-001"
+    );
+    const detail = await loadShipmentDetail(app, cookie, resetDemo001.id);
+    await app.close();
+
+    expect(reset.statusCode).toBe(200);
+    expect(reset.json()).toEqual({ reset: true });
+    expect(list.json().shipments.map((shipment: { reference: string; state: string }) => ({
+      reference: shipment.reference,
+      state: shipment.state
+    })).sort((left: { reference: string }, right: { reference: string }) =>
+      left.reference.localeCompare(right.reference)
+    )).toEqual([
+      { reference: "DEMO-001", state: "awaiting_loading" },
+      { reference: "DEMO-002", state: "in_transit" },
+      { reference: "DEMO-003", state: "completed" }
+    ]);
+    expect(detail.shipment.state).toBe("awaiting_loading");
+    expect(detail.events).toHaveLength(2);
+    expect(detail.events.map((event: { eventType: string }) => event.eventType)).toEqual([
+      "shipment_created",
+      "dispatch"
+    ]);
+    expect(detail.events[0]?.previousState).toBe("draft");
+    expect(detail.events.at(-1)?.nextState).toBe("awaiting_loading");
+  });
+
+  it("resets only the current guest session and leaves another session unchanged", async () => {
+    const app = createTestApp();
+    const firstBootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const secondBootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const firstCookie = firstBootstrap.cookies[0];
+    const secondCookie = secondBootstrap.cookies[0];
+    const secondTarget = await findShipmentByReference(app, secondCookie, "DEMO-001");
+
+    await app.inject({
+      method: "POST",
+      url: `/api/shipments/${secondTarget.id}/actions`,
+      cookies: { [secondCookie.name]: secondCookie.value },
+      payload: {
+        action: "markVehicleArrived",
+        actorRole: "warehouse"
+      }
+    });
+
+    const reset = await app.inject({
+      method: "POST",
+      url: "/api/demo/reset",
+      cookies: { [firstCookie.name]: firstCookie.value },
+      payload: {
+        guestSessionId: secondCookie.value,
+        shipments: [{ reference: "DEMO-001", state: "cancelled" }]
+      }
+    });
+    const firstDemo001 = await findShipmentByReference(app, firstCookie, "DEMO-001");
+    const secondAfter = await loadShipmentDetail(app, secondCookie, secondTarget.id);
+    await app.close();
+
+    expect(reset.statusCode).toBe(200);
+    expect(firstDemo001.state).toBe("awaiting_loading");
+    expect(secondAfter.shipment.state).toBe("loading");
+    expect(secondAfter.events.map((event: { eventType: string }) => event.eventType)).toContain("markVehicleArrived");
+  });
+
+  it("handles repeated and concurrent reset without duplicate shipments or event chains", async () => {
+    const app = createTestApp();
+    const session = await app.inject({ method: "GET", url: "/api/session" });
+    const cookie = session.cookies[0];
+
+    await app.inject({
+      method: "POST",
+      url: "/api/demo/bootstrap",
+      cookies: { [cookie.name]: cookie.value }
+    });
+
+    const repeated = await app.inject({
+      method: "POST",
+      url: "/api/demo/reset",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const responses = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: "/api/demo/reset",
+        cookies: { [cookie.name]: cookie.value }
+      }),
+      app.inject({
+        method: "POST",
+        url: "/api/demo/reset",
+        cookies: { [cookie.name]: cookie.value }
+      })
+    ]);
+
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const demo001 = await findShipmentByReference(app, cookie, "DEMO-001");
+    const detail = await loadShipmentDetail(app, cookie, demo001.id);
+    await app.close();
+
+    expect(repeated.statusCode).toBe(200);
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200]);
+    expect(list.json().shipments).toHaveLength(3);
+    expect(new Set(list.json().shipments.map((shipment: { reference: string }) => shipment.reference)).size).toBe(3);
+    expect(detail.events).toHaveLength(2);
+  });
+
   it("isolates bootstrapped datasets by guest session", async () => {
     const app = createTestApp();
     const firstBootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
@@ -475,6 +611,49 @@ describe("shipment read API", () => {
     expect(list.statusCode).toBe(503);
     expect(detail.statusCode).toBe(503);
   });
+
+  it("returns a controlled response for reset database failures", async () => {
+    const app = createTestApp({
+      database: {
+        db: {
+          delete() {
+            throw new Error("simulated database failure");
+          },
+          execute() {
+            throw new Error("simulated database failure");
+          },
+          insert() {
+            return {
+              values() {
+                return {
+                  returning: async () => [guestSessionRecord()]
+                };
+              }
+            };
+          },
+          select() {
+            throw new Error("simulated database failure");
+          },
+          update() {
+            throw new Error("simulated database failure");
+          },
+          transaction() {
+            throw new Error("simulated database failure");
+          }
+        } as never,
+        async close() {}
+      }
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/demo/reset"
+    });
+    await app.close();
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: "demo_reset_unavailable" });
+  });
 });
 
 function createTestApp(options: { database?: AppOptions["database"] } = {}) {
@@ -525,7 +704,12 @@ async function loadShipmentDetail(
 
   return response.json() as {
     shipment: { id: string; state: string };
-    events: Array<{ sequence: number; eventType: string }>;
+    events: Array<{
+      eventType: string;
+      nextState: string;
+      previousState: string;
+      sequence: number;
+    }>;
   };
 }
 
