@@ -469,35 +469,79 @@ describe("shipment read API", () => {
     });
     const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
     const cookie = bootstrap.cookies[0];
-    const target = await findShipmentByReference(app, cookie, "DEMO-001");
 
     const firstReset = await app.inject({
       method: "POST",
       url: "/api/demo/reset",
       cookies: { [cookie.name]: cookie.value }
     });
+    const currentDemo001 = await findShipmentByReference(app, cookie, "DEMO-001");
     await app.inject({
       method: "POST",
-      url: `/api/shipments/${target.id}/actions`,
+      url: `/api/shipments/${currentDemo001.id}/actions`,
       cookies: { [cookie.name]: cookie.value },
       payload: {
         action: "markVehicleArrived",
         actorRole: "warehouse"
       }
     });
+    const beforeList = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const beforeDetail = await loadShipmentDetail(app, cookie, currentDemo001.id);
+    const beforeUsage = await loadUsage(cookie.value);
+
     const blockedReset = await app.inject({
       method: "POST",
       url: "/api/demo/reset",
       cookies: { [cookie.name]: cookie.value }
     });
-    const after = await loadShipmentDetail(app, cookie, target.id);
+    const afterList = await app.inject({
+      method: "GET",
+      url: "/api/shipments",
+      cookies: { [cookie.name]: cookie.value }
+    });
+    const afterDemo001 = afterList.json().shipments.find(
+      (shipment: { reference: string }) => shipment.reference === "DEMO-001"
+    );
+    const afterDetail = await loadShipmentDetail(app, cookie, afterDemo001.id);
+    const afterUsage = await loadUsage(cookie.value);
     await app.close();
 
     expect(firstReset.statusCode).toBe(200);
+    expect(beforeList.json().shipments).toHaveLength(3);
     expect(blockedReset.statusCode).toBe(429);
     expect(blockedReset.json()).toEqual({ error: "demo_reset_quota_exceeded" });
-    expect(after.shipment.state).toBe("loading");
-    expect(after.events.map((event: { eventType: string }) => event.eventType)).toContain("markVehicleArrived");
+    expect(afterList.json().shipments).toHaveLength(3);
+    expect(snapshotShipments(afterList.json().shipments)).toEqual(
+      snapshotShipments(beforeList.json().shipments)
+    );
+    expect(afterDemo001).toMatchObject({
+      id: currentDemo001.id,
+      reference: "DEMO-001"
+    });
+    expect(afterDetail.shipment.state).toBe(beforeDetail.shipment.state);
+    expect(afterDetail.events.map((event: { eventType: string }) => event.eventType)).toEqual(
+      beforeDetail.events.map((event: { eventType: string }) => event.eventType)
+    );
+    expect(afterDetail.events.map((event: { previousState: string; nextState: string }) => ({
+      previousState: event.previousState,
+      nextState: event.nextState
+    }))).toEqual(
+      beforeDetail.events.map((event: { previousState: string; nextState: string }) => ({
+        previousState: event.previousState,
+        nextState: event.nextState
+      }))
+    );
+    expect(afterDetail.shipment.state).toBe("loading");
+    expect(afterDetail.events.map((event: { eventType: string }) => event.eventType)).toContain("markVehicleArrived");
+    expect(afterUsage).toMatchObject({
+      mutation_count: beforeUsage?.mutation_count,
+      reset_count: beforeUsage?.reset_count,
+      rate_window_count: (beforeUsage?.rate_window_count ?? 0) + 1
+    });
   });
 
   it("rejects reset by general mutation quota without changing the dataset", async () => {
@@ -1365,6 +1409,18 @@ async function loadShipmentDetail(
       sequence: number;
     }>;
   };
+}
+
+function snapshotShipments(
+  shipments: Array<{ id: string; reference: string; state: string }>
+) {
+  return shipments
+    .map((shipment) => ({
+      id: shipment.id,
+      reference: shipment.reference,
+      state: shipment.state
+    }))
+    .sort((left, right) => left.reference.localeCompare(right.reference));
 }
 
 async function loadUsage(guestSessionId: string) {
