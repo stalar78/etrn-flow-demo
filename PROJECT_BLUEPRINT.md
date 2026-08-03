@@ -4,7 +4,7 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stage 09 accepted; repeatable demo reset/restart next
+- Current stage: Stage 10 accepted; guest-session quotas and public abuse controls next
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
@@ -81,11 +81,12 @@ Merged into `main`:
 - Stage 06 — session-scoped shipment read API and deterministic demo bootstrap;
 - Stage 07 — transactionally safe shipment workflow transition API;
 - Stage 08 — first usable frontend vertical slice;
-- Stage 09 — sequential frontend workflow demo with recovery hardening.
+- Stage 09 — sequential frontend workflow demo with recovery hardening;
+- Stage 10 — controlled guest-session demo reset/restart.
 
-Latest accepted Stage 09 merge commit:
+Latest accepted Stage 10 merge commit:
 
-`1b70452edb4e5305955d80409dc655a5e1d18702`
+`497afc9ee431022c9cf7286ae229a301ac48cc38`
 
 ## 7. Current backend capabilities
 
@@ -96,6 +97,7 @@ Latest accepted Stage 09 merge commit:
 - `/health` isolated from session and database work;
 - `GET /api/session`;
 - `POST /api/demo/bootstrap`;
+- `POST /api/demo/reset`;
 - `GET /api/shipments`;
 - `GET /api/shipments/:shipmentId`;
 - `POST /api/shipments/:shipmentId/actions`;
@@ -105,6 +107,10 @@ Latest accepted Stage 09 merge commit:
 - guarded state update and append-only event in one transaction;
 - controlled `400`, `403`, `404`, `409` and `503` responses;
 - concurrent transition conflict handling;
+- transactional reset through a dedicated `DemoResetService`;
+- same-session reset serialization through PostgreSQL advisory transaction locking;
+- scoped deletion and exact deterministic recreation of shipment/event data;
+- controlled `demo_reset_unavailable` response;
 - PostgreSQL-backed integration coverage in CI.
 
 ## 8. Current frontend capabilities
@@ -122,11 +128,15 @@ Latest accepted Stage 09 merge commit:
 - compact workflow progress presentation;
 - separate terminal and exception-state presentation;
 - refresh of list and detail after every server-confirmed transition;
-- double-submit protection;
-- controlled initialization, transition and recovery-refresh errors;
-- stale detail and transition-refresh protection;
-- disabled shipment switching during transition;
-- restoration of controls after transition or recovery failure;
+- explicit reset confirmation;
+- reset/transition mutual exclusion and double-submit protection;
+- atomic post-reset workspace snapshot application;
+- deterministic selection of `DEMO-001` after reset;
+- preservation of the previous valid workspace if reset refresh fails;
+- stale pre-reset detail protection;
+- controlled initialization, transition, reset and recovery-refresh errors;
+- disabled shipment switching during transition or reset;
+- restoration of controls after transition, reset or refresh failure;
 - persistent synthetic-data disclaimer;
 - focused API-client and component tests.
 
@@ -175,24 +185,38 @@ named action
 
 Direct status editing is forbidden.
 
+Reset is a separate explicit operation and must follow:
+
+```text
+server-resolved guest session
+→ transaction
+→ same-session advisory lock
+→ delete scoped events
+→ delete scoped shipments
+→ recreate deterministic dataset and histories
+→ commit
+→ authoritative list/detail refresh
+```
+
 ## 11. Guest session model
 
 Implemented:
 
 - entry without registration;
 - backend-issued httpOnly cookie;
-- all shipment reads and transitions scoped by guest session;
+- all shipment reads, transitions and reset operations scoped by guest session;
 - default TTL of 24 hours;
 - invalid, missing, unknown and expired session replacement;
 - production-aware `Secure` cookie behavior;
-- controlled persistence failure handling.
+- controlled persistence failure handling;
+- explicit repeatable reset of the current synthetic dataset.
 
 Pending before public launch:
 
-- controlled reset/restart endpoint;
-- quotas for shipments, events and actions;
+- quotas for shipments, events, transitions and reset requests;
 - cleanup of expired sessions;
-- public rate limiting.
+- public rate limiting;
+- bounded abuse-response behavior.
 
 Demo role presentation remains a frontend feature, not production RBAC.
 
@@ -207,6 +231,7 @@ Demo role presentation remains a frontend feature, not production RBAC.
 - Production cookies use `httpOnly`, `Secure` and appropriate `SameSite` settings.
 - Frontend never accepts or transmits a guest-session id.
 - Frontend never accepts or transmits a target next state.
+- Reset accepts no client-selected session, state, shipment or seed data.
 - Logs exclude personal and sensitive data.
 - Production deployment remains manual in the first release cycle.
 
@@ -235,18 +260,26 @@ Accepted coverage includes:
 - sequential action availability and second-step execution;
 - confirmed destructive cancellation;
 - progress, terminal and exception-state presentation;
-- double-submit protection;
-- stale normal-detail response protection;
-- stale transition and conflict-refresh protection;
+- transition and reset double-submit protection;
+- reset confirmation and cancellation;
+- exact reset restoration of all three deterministic shipments;
+- reset event-history recreation;
+- repeated and concurrent same-session reset safety;
+- cross-session reset isolation;
+- atomic post-reset snapshot refresh;
+- preservation of the previous complete UI snapshot on detail-refresh failure;
+- stale normal-detail, transition-refresh and pre-reset detail protection;
 - recovery-refresh failure handling with restored controls.
 
 Still required before first deployment:
 
-- reset and quota integration tests;
-- one browser-level end-to-end happy path;
+- quota and rate-limit integration tests;
+- one browser-level end-to-end happy path including reset;
 - production security and deployment audit;
 - public abuse controls;
 - stabilization of the existing concurrency integration assertion so both valid race outcomes are handled deterministically.
+
+Latest accepted Stage 10 CI: run #32, successful.
 
 ## 14. AI-agent workflow
 
@@ -256,7 +289,8 @@ Still required before first deployment:
 
 Rules:
 
-- Codex prompts are written in English.
+- Codex prompts are written in Russian.
+- File names, paths, components, variables and technical entities preserve their exact code names.
 - Complex work uses Plan → approval → Build.
 - GPT maintains documentation directly through GitHub.
 - Codex does not modify project documentation unless explicitly authorized.
@@ -269,37 +303,38 @@ Rules:
 |---|---|---|
 | Product mistaken for an accredited operator | Legal and reputational | Persistent demo disclaimer and clear positioning |
 | Overbuilding a TMS | Long delay | Strict MVP and stage gates |
-| Public abuse | Cost and instability | Rate limits, session quotas, reset and expiry |
+| Public abuse | Cost and instability | Rate limits, session quotas, reset quotas and expiry |
 | Invalid state mutation | Corrupted demo history | Named actions, guarded persistence and append-only events |
 | Frontend stale-response mismatch | Misleading UI | Shared request-version guard and selection invariant |
-| Demo cannot be repeated | Weak public experience | Controlled reset/restart stage before deployment |
+| Reset/transition overlap | Mixed state or confusing UI | Mutual exclusion in frontend and transactional backend operations |
+| Reset breaks event history | Corrupted demo scenario | Scoped delete plus deterministic recreation in one transaction |
 | Flaky concurrency test | Unreliable CI signal | Stabilize expected race outcomes without weakening backend guarantees |
 | No demand after advertising | Lost time | Launch minimally, measure and refine |
 
 ## 16. Delivery estimate
 
-Current estimate after Stage 09:
+Current estimate after Stage 10:
 
-- technical demo MVP: approximately 72–78% complete;
-- credible public portfolio demo: approximately 58–65% complete;
-- working public demo MVP: about 2–4 focused working days if scope remains controlled;
-- polished portfolio release: about 5–8 focused working days;
+- technical demo MVP: approximately 78–84% complete;
+- credible public portfolio demo: approximately 64–72% complete;
+- working public demo MVP: about 2–3 focused working days if scope remains controlled;
+- polished portfolio release: about 4–7 focused working days;
 - real customer pilot remains a separate 3–6 week effort depending on authentication, integrations and operational requirements.
 
 ## 17. Current next step
 
-Stage 10: add a controlled repeatable demo reset/restart flow.
+Stage 11: introduce guest-session quotas and basic public abuse controls without turning the demo into a generic security platform.
 
 The stage should:
 
-- define exact reset semantics for the current guest session;
-- restore the deterministic three-shipment demo dataset and coherent event histories;
-- keep reset server-controlled and transactionally safe;
-- avoid exposing direct status mutation or arbitrary seed controls;
-- make repeated reset requests idempotent and concurrent-safe;
-- preserve guest-session isolation;
-- add a clear frontend confirmation and recovery path;
-- refresh list, selection, detail, actions, progress and timeline after reset;
-- preserve stale-response and in-flight interaction protections;
-- add focused backend integration and frontend tests;
-- avoid quotas, rate limiting, analytics, deployment and real integrations until their own stages.
+- define explicit per-session limits for transitions and reset requests;
+- decide whether shipment/event limits are enforced as hard invariants or derived from the deterministic dataset;
+- return stable controlled errors when a quota is exhausted;
+- preserve bootstrap, workflow, reset and guest-session isolation semantics;
+- keep counters authoritative on the server;
+- prevent concurrent requests from bypassing limits;
+- avoid trusting client-provided counters or identity data;
+- add minimal public rate limiting at the appropriate boundary;
+- expose clear Russian recovery messages without leaking infrastructure details;
+- add PostgreSQL-backed integration coverage for isolation, concurrency and limit exhaustion;
+- avoid analytics, authentication, deployment and real integrations until their own stages.
