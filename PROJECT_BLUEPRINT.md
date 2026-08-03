@@ -119,7 +119,7 @@ Latest accepted merge commit:
 - controlled `guest_session_rate_limited`, `guest_session_quota_exceeded`, `demo_reset_quota_exceeded` and `guest_session_usage_unavailable` responses;
 - concurrent transition conflict handling with stabilized same-state race semantics;
 - same-state concurrent transition loser may be either `transition_conflict` or `invalid_transition`, depending on when the losing request observes state;
-- `shipment_events.sequence` is a global table sequence: per-shipment values must remain strictly increasing and unique, while global gaps remain допустимы;
+- `shipment_events.sequence` is a global table sequence: per-shipment values must remain strictly increasing and unique, while global gaps are allowed;
 - transactional reset through a dedicated `DemoResetService`;
 - same-session reset serialization through PostgreSQL advisory transaction locking;
 - scoped deletion and exact deterministic recreation of shipment/event data;
