@@ -3,14 +3,16 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–10 are accepted and merged into `main`.
-- Latest accepted product-code merge: Stage 10, commit `497afc9ee431022c9cf7286ae229a301ac48cc38`.
-- `PROJECT_BLUEPRINT.md` was synchronized after Stage 10 in commit `7f2f17c29c7c4e1dabc3defe9a5bff947cdf7a8f`.
-- Current next stage: Stage 11 guest-session quotas and basic public abuse controls.
+- Stages 03–12A are accepted and merged into `main`.
+- Stage 11 accepted merge commit: `a4652c312d06cdd7be9a28e141fae4c5a2da2557`.
+- Stage 12A accepted merge commit: `a14fdb4cf924f77e42dfab181593b2903a6bef73`.
+- Latest accepted product-code merge: Stage 12A, commit `a14fdb4cf924f77e42dfab181593b2903a6bef73`.
+- Latest accepted CI: run #40, successful.
+- Current next stage: Stage 12B browser-level happy path, UX/accessibility and recovery audit.
 
 ## Current stage
 
-`Controlled demo reset accepted → Quotas and public abuse controls next`
+`Public abuse controls and concurrency semantics accepted → Browser-level UX/accessibility audit next`
 
 ## Product boundary
 
@@ -47,6 +49,30 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
 - Frontend does not receive or send a guest-session identifier as application data.
 - `/health` is isolated from session/database behavior.
 
+### Guest-session quotas and public abuse controls
+
+- PostgreSQL-backed `guest_session_usage_limits`.
+- Protected POST endpoints:
+  - `POST /api/demo/bootstrap`;
+  - `POST /api/demo/reset`;
+  - `POST /api/shipments/:shipmentId/actions`.
+- Burst limiting runs after server-side guest-session resolution.
+- Burst accounting runs in a separate short PostgreSQL transaction.
+- Lifetime mutation and reset accounting run inside the same business transaction as the mutation.
+- Public synthetic-demo defaults:
+  - mutation limit: 60;
+  - reset limit: 8;
+  - burst window: 10 seconds;
+  - burst maximum: 6 protected POST requests.
+- Controlled errors:
+  - `guest_session_rate_limited`;
+  - `guest_session_quota_exceeded`;
+  - `demo_reset_quota_exceeded`;
+  - `guest_session_usage_unavailable`.
+- Quota and rate-limit accounting are isolated per guest session.
+- Reset does not clear usage counters.
+- Read endpoints and `/health` do not spend mutation or reset quota.
+
 ### Shipment read and bootstrap
 
 - `GET /health`.
@@ -60,7 +86,7 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
   - `DEMO-003` → `completed`.
 - Bootstrap is transactional, idempotent and concurrent-safe.
 - Shipment list/detail and events are guest-session scoped.
-- Event histories are contiguous and deterministically ordered.
+- Event state chains are coherent and events are deterministically ordered.
 
 ### Workflow transition API
 
@@ -71,6 +97,13 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
 - Guarded shipment update and append-only event occur in one transaction.
 - Controlled errors include invalid request, forbidden role, invalid transition, not found, conflict and unavailable.
 - Concurrent requests cannot both apply the same expected-state transition.
+- For same-state concurrent transition race, the controlled loser may be:
+  - `transition_conflict`, if both requests validated the old state before the winner committed;
+  - `invalid_transition`, if the loser read the already-updated state after the winner committed.
+- `shipment_events.sequence` is a global table sequence:
+  - event list values for one shipment must remain strictly increasing and unique;
+  - global gaps are allowed;
+  - local `+1` must not be required.
 - Supported demo transitions currently exposed by the frontend:
   - `draft → ready_for_dispatch` via `prepareDispatch` / `dispatcher`;
   - `ready_for_dispatch → awaiting_loading` via `dispatch` / `dispatcher`;
@@ -148,6 +181,16 @@ server-resolved guest session
 → authoritative frontend refresh
 ```
 
+Protected POST abuse controls must follow:
+
+```text
+server-resolved guest session
+→ burst accounting in a separate short transaction
+→ business transaction
+→ lifetime mutation/reset accounting inside the same business transaction as the mutation
+→ commit or rollback
+```
+
 When detail is displayed:
 
 ```text
@@ -184,70 +227,73 @@ Accepted coverage includes:
 - coherent recreated event chains;
 - repeated and concurrent reset safety;
 - reset isolation between guest sessions;
+- quota and rate-limit coverage for burst, lifetime mutation quota, reset quota, rollback and session isolation;
+- Stage 12A race contract coverage for same-state concurrent transitions;
 - controlled reset failure mapping;
 - atomic post-reset list/detail snapshot application;
 - preservation of the previous complete UI snapshot when post-reset detail refresh fails;
 - stale pre-reset detail protection;
 - restoration of list, action and reset interaction after failures.
 
-Latest accepted CI for Stage 10: run #32, successful.
+Latest accepted CI: run #40, successful.
 
-Known CI issue to address deliberately:
+## Next controlled stage — Stage 12B
 
-- an existing transition concurrency integration test can receive `invalid_transition` instead of `transition_conflict` depending on whether the losing request validates before or after the winning transaction commits;
-- both outcomes preserve the invariant that only one transition is applied;
-- the assertion should be stabilized without weakening backend guarantees.
+Browser-level happy path, UX/accessibility and recovery audit.
 
-## Next controlled stage — Stage 11
+This is an audit-first stage, not a broad redesign.
 
-Introduce guest-session quotas and basic public abuse controls before exposing the demo publicly.
+Stage 12B should:
 
-Before implementation, inspect the current guest-session schema, transition/reset transaction boundaries, Fastify plugin setup, production proxy assumptions and error-envelope conventions.
+- verify the complete browser-level happy path:
+  - entry;
+  - bootstrap;
+  - shipment selection;
+  - first transition;
+  - second transition;
+  - reset;
+  - restored deterministic state;
+- verify controlled error and recovery paths;
+- verify keyboard navigation;
+- verify visible focus;
+- verify disabled and loading states;
+- verify accessible labels and confirmations;
+- verify responsive behavior;
+- verify synthetic-demo disclaimer visibility;
+- verify the absence of stale UI after transition or reset;
+- add browser-level tests only for the critical happy path and reset;
+- allow only minimal targeted fixes discovered by the audit.
 
-Stage 11 should:
+Stage 12B should not include:
 
-- define explicit server-side per-session limits for workflow transitions and reset requests;
-- decide whether shipment/event limits are fixed invariants of the deterministic dataset or separately counted resources;
-- enforce limits atomically so concurrent requests cannot bypass them;
-- preserve bootstrap, transition, reset and cross-session isolation behavior;
-- add stable controlled API errors for exhausted quotas;
-- add minimal public rate limiting at an appropriate HTTP boundary;
-- avoid trusting browser-provided counters, session identifiers or limit data;
-- preserve the current deterministic reset capability;
-- add clear Russian frontend error messages and recovery behavior;
-- add PostgreSQL-backed integration tests for exhaustion, isolation, concurrency and reset interaction;
-- keep configuration explicit and suitable for later production tuning.
-
-Stage 11 should not yet implement:
-
-- authentication or production RBAC;
-- billing or plans;
-- a generic quota-management platform;
-- distributed rate limiting infrastructure unless the accepted deployment topology requires it;
-- analytics dashboards;
-- attachments, PDF or signatures;
-- real operator integration;
 - production deployment;
-- marketing landing page changes.
+- real integrations;
+- authentication or RBAC;
+- analytics dashboards;
+- redesign;
+- marketing landing page work;
+- generic accessibility-platform work;
+- attachments, PDF or signatures;
+- broad component rewrites.
 
 ## Near-term stage order
 
-After Stage 11, likely controlled steps are:
+Next likely controlled steps are:
 
-1. stabilization of concurrency CI semantics if not handled during Stage 11;
-2. final UX/accessibility and browser-level happy-path audit;
-3. production Compose/Nginx hardening;
-4. deployment and smoke/security audit;
-5. portfolio presentation and public documentation.
+1. browser-level happy path and UX/accessibility audit;
+2. production Compose/Nginx and runtime hardening review;
+3. deployment and smoke/security audit;
+4. portfolio presentation and public documentation;
+5. controlled traffic/analytics stage only after the deployment baseline is accepted.
 
 ## Delivery estimate
 
-After Stage 10:
+After Stage 12A:
 
-- technical demo MVP: approximately 78–84% complete;
-- credible public portfolio demo: approximately 64–72% complete;
-- working public demo MVP: roughly 2–3 focused working days if scope remains controlled;
-- polished portfolio release: roughly 4–7 focused working days;
+- technical demo MVP: approximately 84–89% complete;
+- credible public portfolio demo: approximately 70–78% complete;
+- working public demo MVP: roughly 1–2 focused working days if scope remains controlled;
+- polished portfolio release: roughly 3–6 focused working days;
 - real customer pilot is a separate 3–6 week effort depending on authentication, integrations and operational requirements.
 
 ## Agent workflow rules
@@ -267,14 +313,13 @@ After Stage 10:
 
 - accidental positioning as an accredited operator;
 - TMS scope expansion;
-- public abuse before quotas/rate limiting;
-- counters that can be bypassed by concurrency;
+- abuse-control tuning behind a reverse proxy;
+- incorrect client-IP assumptions in later deployment hardening;
+- cleanup of expired sessions;
 - reset quota semantics that make the demo unusable;
-- rate limiting that blocks normal demo use behind a shared proxy;
-- cross-session quota leakage;
-- stale frontend data after controlled errors;
-- flaky concurrency assertion producing unreliable CI signals;
-- premature real-integration claims.
+- browser UX/accessibility gaps;
+- stale frontend recovery regressions after controlled errors;
+- premature integration claims.
 
 ## Documents to read first in a new chat
 
