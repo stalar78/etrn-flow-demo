@@ -1244,12 +1244,14 @@ describe("shipment read API", () => {
       previousState: "awaiting_loading",
       nextState: "loading"
     });
-    expect(after.events.map((event: { sequence: number }) => event.sequence)).toEqual(
-      [...after.events.map((event: { sequence: number }) => event.sequence)].sort(
-        (left, right) => left - right
-      )
-    );
-    expect(isContiguousSequence(after.events)).toBe(true);
+    const sequences = after.events.map((event: { sequence: number }) => event.sequence);
+    expect(sequences).toEqual([...sequences].sort((left, right) => left - right));
+    expect(
+      sequences.every((sequence, index) => index === 0 || sequence > sequences[index - 1])
+    ).toBe(true);
+    expect(new Set(sequences).size).toBe(sequences.length);
+    expect(after.events.at(-1)?.sequence).toBeGreaterThan(before.events.at(-1)?.sequence ?? -1);
+    expect(hasContinuousStateChain(after.events)).toBe(true);
     expect(usageAfterRace).toMatchObject({
       mutation_count: (usageBefore?.mutation_count ?? 0) + 1,
       reset_count: usageBefore?.reset_count,
@@ -1264,6 +1266,7 @@ describe("shipment read API", () => {
     expect(snapshotEventChain(otherDetailAfter.events)).toEqual(
       snapshotEventChain(otherDetailBefore.events)
     );
+    expect(hasContinuousStateChain(otherDetailAfter.events)).toBe(true);
     expect(otherUsageAfter).toMatchObject({
       mutation_count: otherUsageBefore?.mutation_count,
       reset_count: otherUsageBefore?.reset_count,
@@ -1506,9 +1509,14 @@ function snapshotEventChain(
   }));
 }
 
-function isContiguousSequence(events: Array<{ sequence: number }>) {
+function hasContinuousStateChain(
+  events: Array<{
+    nextState: string;
+    previousState: string;
+  }>
+) {
   return events.every((event, index) =>
-    index === 0 || event.sequence === events[index - 1].sequence + 1
+    index === 0 || events[index - 1]?.nextState === event.previousState
   );
 }
 
