@@ -86,7 +86,7 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
   - `DEMO-003` → `completed`.
 - Bootstrap is transactional, idempotent and concurrent-safe.
 - Shipment list/detail and events are guest-session scoped.
-- Event histories are contiguous and deterministically ordered.
+- Event state chains are coherent and events are deterministically ordered.
 
 ### Workflow transition API
 
@@ -273,8 +273,8 @@ Stage 12B should not include:
 - redesign;
 - marketing landing page work;
 - generic accessibility-platform work;
-- broad component rewrites.
 - attachments, PDF or signatures;
+- broad component rewrites.
 
 ## Near-term stage order
 
@@ -318,10 +318,8 @@ After Stage 12A:
 - cleanup of expired sessions;
 - reset quota semantics that make the demo unusable;
 - browser UX/accessibility gaps;
-- stale frontend data after controlled errors;
-- stale frontend recovery regressions;
-- premature integration claims;
-- accidental operator positioning through premature real-integration claims.
+- stale frontend recovery regressions after controlled errors;
+- premature integration claims.
 
 ## Documents to read first in a new chat
 
