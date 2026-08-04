@@ -4,21 +4,26 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stage 12A accepted; Stage 11 and Stage 12A merged; Stage 12B next
+- Current stage: Stages 03–14B accepted and merged; next local stage not yet named
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
+- Latest accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`
+- Latest accepted CI: run #50, successful
+- Public deployment status: not deployed
 
 ## 2. Purpose
 
-Показать потенциальным клиентам, как индивидуальная веб-система может объединить рейсы, участников перевозки, статусы, события, уведомления и будущую интеграцию с оператором ИС ЭПД.
+Показать потенциальным клиентам, как индивидуальная веб-система может объединить рейсы, участников перевозки, статусы, действия и историю событий в одном рабочем интерфейсе.
 
 Проект создаётся как:
 
 - коммерческая демонстрация компетенций StalarVision;
 - самостоятельный продуктовый кейс;
-- источник лидов с продуктовой страницы и Яндекс Директа;
+- источник лидов с продуктовой страницы и целевого трафика;
 - основа для дальнейшего пилота с реальным заказчиком.
+
+Публичная подача должна представлять одного независимого разработчика, а не студию или агентство.
 
 ## 3. Product boundary
 
@@ -30,23 +35,28 @@ ETRN Flow — публичная интерактивная демонстрац
 - замена операторской платформы;
 - юридически значимая система электронных документов;
 - production TMS;
-- рабочее пространство реального клиента.
+- рабочее пространство реального клиента;
+- подключение к ГИС ЭПД или реальному оператору ИС ЭПД.
 
 Используются только синтетические данные.
+
+Запрещено придумывать клиентов, компании, отзывы, метрики, интеграции, сертификаты, юридические статусы или результаты реального внедрения.
 
 ## 4. Success metric
 
 Первая продуктовая метрика:
 
-> Публичное демо позволяет посетителю без инструкции пройти основной сценарий перевозки за 3–5 минут и понять предложение StalarVision.
+> Публичное демо позволяет посетителю без отдельной инструкции пройти основной сценарий перевозки за 3–5 минут и понять предложение StalarVision.
 
 Первая коммерческая метрика:
 
-> Получено хотя бы одно квалифицированное обращение по аудиту, интеграции или разработке системы вокруг ЭТрН после запуска целевого трафика.
+> Получено хотя бы одно квалифицированное обращение по аудиту, интеграции или разработке похожей системы после запуска целевого трафика.
+
+Аналитика пока не реализована. События и поставщик аналитики должны определяться только после утверждения публичного пути пользователя, privacy boundary и необходимости consent/cookie policy.
 
 ## 5. Current MVP scope
 
-В MVP входят:
+В принятую реализацию входят:
 
 - гостевой демонстрационный сеанс;
 - детерминированный синтетический набор перевозок;
@@ -55,10 +65,10 @@ ETRN Flow — публичная интерактивная демонстрац
 - role-aware demo actions;
 - журнал событий;
 - контролируемый reset/restart демо-сценария;
-- mock integration boundary;
-- CTA StalarVision;
-- аналитика ключевых действий;
-- production deployment.
+- browser-level happy path;
+- production container baseline;
+- компактная публичная продуктовая подача;
+- CTA StalarVision.
 
 Не входят:
 
@@ -69,7 +79,10 @@ ETRN Flow — публичная интерактивная демонстрац
 - 1С/CRM/ERP интеграции;
 - биллинг;
 - полноценная TMS;
-- production multi-tenancy для клиентов.
+- production multi-tenancy для клиентов;
+- authentication/RBAC;
+- аналитика и tracking vendor;
+- публичный deployment.
 
 ## 6. Accepted implementation baseline
 
@@ -84,11 +97,16 @@ Merged into `main`:
 - Stage 09 — sequential frontend workflow demo with recovery hardening;
 - Stage 10 — controlled guest-session demo reset/restart;
 - Stage 11 — guest-session quotas and public abuse controls;
-- Stage 12A — stabilization of concurrent transition integration semantics.
+- Stage 12A — concurrent transition integration semantics;
+- Stage 12B — browser happy path, UX/accessibility and reset audit;
+- Stage 13A — production container baseline and CI stack smoke;
+- Stage 14B — guided product presentation and StalarVision CTA.
 
-Latest accepted merge commit:
+Accepted merge commits:
 
-`a14fdb4cf924f77e42dfab181593b2903a6bef73`
+- Stage 12B: `a1e829ebbd695abc19078362d33a04ffd2b68c15`;
+- Stage 13A: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`;
+- Stage 14B: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
 
 ## 7. Current backend capabilities
 
@@ -110,22 +128,12 @@ Latest accepted merge commit:
 - explicit workflow actions and role/state validation;
 - guarded state update and append-only event in one transaction;
 - burst limiting for protected POST endpoints after server-side guest-session resolution;
-- burst accounting in a separate short PostgreSQL transaction;
-- lifetime mutation and reset quota accounting inside business transactions;
-- rollback-safe lifetime accounting without partial lifetime spend after business rollback;
-- concurrent requests cannot bypass lifetime mutation or reset limits;
-- reset does not clear usage counters;
-- controlled `400`, `403`, `404`, `409` and `503` responses;
-- controlled `guest_session_rate_limited`, `guest_session_quota_exceeded`, `demo_reset_quota_exceeded` and `guest_session_usage_unavailable` responses;
-- concurrent transition conflict handling with stabilized same-state race semantics;
-- same-state concurrent transition loser may be either `transition_conflict` or `invalid_transition`, depending on when the losing request observes state;
-- `shipment_events.sequence` is a global table sequence: per-shipment values must remain strictly increasing and unique, while global gaps are allowed;
-- transactional reset through a dedicated `DemoResetService`;
+- rollback-safe lifetime mutation/reset accounting;
+- controlled quota, rate-limit, conflict and persistence errors;
+- transactional reset through `DemoResetService`;
 - same-session reset serialization through PostgreSQL advisory transaction locking;
-- scoped deletion and exact deterministic recreation of shipment/event data;
-- controlled `demo_reset_unavailable` response;
-- quota and rate-limit isolation between guest sessions;
-- PostgreSQL-backed integration coverage in CI.
+- PostgreSQL-backed integration coverage in CI;
+- graceful SIGTERM/SIGINT shutdown in the production API runtime.
 
 ## 8. Current frontend capabilities
 
@@ -136,25 +144,98 @@ Latest accepted merge commit:
 - responsive shipment list and detail layout;
 - Russian labels for states, roles, actions and events;
 - ordered event timeline;
-- state-driven action availability for supported transitions;
+- state-driven action availability;
 - sequential `DEMO-001` path: `awaiting_loading → loading → in_transit`;
 - supported draft actions: prepare for dispatch and confirmed cancellation;
-- compact workflow progress presentation;
-- separate terminal and exception-state presentation;
-- refresh of list and detail after every server-confirmed transition;
-- explicit reset confirmation;
-- reset/transition mutual exclusion and double-submit protection;
-- atomic post-reset workspace snapshot application;
-- deterministic selection of `DEMO-001` after reset;
-- preservation of the previous valid workspace if reset refresh fails;
-- stale pre-reset detail protection;
-- controlled initialization, transition, reset and recovery-refresh errors;
-- disabled shipment switching during transition or reset;
-- restoration of controls after transition, reset or refresh failure;
-- persistent synthetic-data disclaimer;
-- focused API-client and component tests.
+- workflow progress presentation;
+- reset confirmation, mutual exclusion and double-submit protection;
+- atomic post-reset snapshot application;
+- stale-request protection and controlled recovery;
+- persistent synthetic-data boundary;
+- compact `ProductIntro` above the workspace;
+- one page-level `h1`;
+- concise explanation of the business use case;
+- independent-developer positioning for StalarVision;
+- short DEMO-001 instruction;
+- explicit non-legal/non-operator disclaimer;
+- single CTA to `https://stalarvision.ru`;
+- native `details/summary` disclosure.
 
-## 9. Architecture overview
+## 9. Browser and CI baseline
+
+Accepted browser coverage:
+
+- one Chromium E2E happy path;
+- entry and bootstrap;
+- default `DEMO-001` selection;
+- first transition;
+- second transition;
+- timeline verification;
+- reset;
+- deterministic restoration;
+- first-visit product heading, instruction, disclaimer and CTA assertions.
+
+Accepted GitHub CI jobs:
+
+### `Checks`
+
+- install;
+- lint;
+- typecheck;
+- unit/component tests;
+- migrations;
+- persistence integration tests;
+- build;
+- Chromium installation;
+- browser E2E.
+
+### `Production stack`
+
+- production Compose validation;
+- production image build;
+- PostgreSQL startup;
+- one-shot migrations;
+- API/web startup;
+- health check;
+- same-origin smoke;
+- exact host-port exposure assertion;
+- cleanup.
+
+Latest accepted CI: run #50, successful.
+
+## 10. Production container baseline
+
+Accepted topology:
+
+```text
+Internet
+→ host Nginx + Certbot
+→ 127.0.0.1:8082
+→ web container with Nginx
+   ├─ serves Vite assets
+   ├─ proxies /api/* to api:3000
+   └─ proxies /health to api:3000
+→ api container
+→ postgres container
+```
+
+Accepted implementation:
+
+- multi-stage API image based on Node 22 Alpine;
+- compiled JavaScript runtime only;
+- non-root API user;
+- multi-stage web image with Nginx runtime;
+- one-shot migration service;
+- production Compose with only `127.0.0.1:8082:8080` published;
+- isolated production network and volume names;
+- same-origin proxying;
+- bounded logs and resource limits;
+- container hardening appropriate to API and web runtime constraints;
+- `.env.production.example` without secrets.
+
+This is only a local/CI production-container baseline. No VPS deployment, host Nginx configuration, TLS, DNS or firewall work has been accepted.
+
+## 11. Architecture overview
 
 ```text
 Browser
@@ -179,9 +260,9 @@ packages/
 infra/
 ```
 
-The system remains a modular monolith. Real external integration must be introduced later through a replaceable adapter contract, without coupling domain workflow to a specific operator SDK.
+The system remains a modular monolith. Real external integration must later be introduced through a replaceable adapter contract without coupling the domain workflow to a specific operator SDK.
 
-## 10. Workflow invariant
+## 12. Core invariants
 
 Every state change must follow:
 
@@ -199,7 +280,7 @@ named action
 
 Direct status editing is forbidden.
 
-Reset is a separate explicit operation and must follow:
+Reset must follow:
 
 ```text
 server-resolved guest session
@@ -222,93 +303,34 @@ server-resolved guest session
 → commit or rollback
 ```
 
-## 11. Guest session model
+When detail is displayed:
 
-Implemented:
+```text
+selectedShipmentId === detail.shipment.id
+```
 
-- entry without registration;
-- backend-issued httpOnly cookie;
-- all shipment reads, transitions and reset operations scoped by guest session;
-- default TTL of 24 hours;
-- invalid, missing, unknown and expired session replacement;
-- production-aware `Secure` cookie behavior;
-- controlled persistence failure handling;
-- explicit repeatable reset of the current synthetic dataset;
-- protected POST quotas and public burst rate limiting;
-- server-authoritative usage counters stored in PostgreSQL;
-- quota and burst isolation between guest sessions;
-- read endpoints and `/health` excluded from mutation/reset quota spending.
-
-Pending before public launch:
-
-- cleanup of expired sessions;
-- bounded abuse-response behavior tuning behind the eventual reverse-proxy and deployment baseline.
-
-Demo role presentation remains a frontend feature, not production RBAC.
-
-## 12. Security model
+## 13. Security model
 
 - Synthetic demo data only.
 - No real signatures, certificates or legal documents.
-- No file uploads in the first MVP.
+- No file uploads in the accepted MVP.
 - Secrets only through environment configuration outside Git.
 - Server-side validation with Zod.
 - Session isolation enforced in database queries.
 - Usage accounting is server-authoritative.
-- Client-controlled counters and client-controlled limits are forbidden.
+- Client-controlled counters, limits, session ids and target states are forbidden.
 - Production cookies use `httpOnly`, `Secure` and appropriate `SameSite` settings.
-- Frontend never accepts or transmits a guest-session id.
-- Frontend never accepts or transmits a target next state.
 - Reset accepts no client-selected session, state, shipment or seed data.
-- Controlled abuse responses are bounded and do not expose infrastructure details.
-- Logs exclude personal and sensitive data.
-- Production deployment remains manual in the first release cycle.
+- Controlled errors do not expose infrastructure details.
+- Production deployment remains manual and explicitly gated.
 
-## 13. Testing baseline
+Pending security/reliability work before a public release may include:
 
-CI validates:
-
-- dependency installation;
-- lint;
-- typecheck;
-- unit tests;
-- database migrations;
-- PostgreSQL integration tests;
-- production build.
-
-Accepted coverage includes:
-
-- workflow domain rules;
-- persistence repositories;
-- guest-session behavior and isolation;
-- deterministic bootstrap and event-chain coherence;
-- shipment list/detail API;
-- transition success, denial, isolation and concurrency conflict;
-- API-client response parsing and safe payload construction;
-- frontend initialization, selection, timeline and action execution;
-- sequential action availability and second-step execution;
-- confirmed destructive cancellation;
-- progress, terminal and exception-state presentation;
-- transition and reset double-submit protection;
-- reset confirmation and cancellation;
-- exact reset restoration of all three deterministic shipments;
-- reset event-history recreation;
-- repeated and concurrent same-session reset safety;
-- cross-session reset isolation;
-- Stage 11 quota and rate-limit integration coverage, including exhaustion, rollback and session isolation;
-- Stage 12A same-state concurrent transition race contract coverage;
-- atomic post-reset snapshot refresh;
-- preservation of the previous complete UI snapshot on detail-refresh failure;
-- stale normal-detail, transition-refresh and pre-reset detail protection;
-- recovery-refresh failure handling with restored controls.
-
-Still required before first deployment:
-
-- one browser-level end-to-end happy path including reset;
-- production security and deployment audit;
-- browser-level UX/accessibility and recovery audit.
-
-Latest accepted CI: run #40, successful.
+- expired-session cleanup policy;
+- reverse-proxy-aware abuse-control calibration;
+- public-release security audit;
+- final CSP/header decision at the host/proxy boundary;
+- production secret provisioning and backup policy.
 
 ## 14. AI-agent workflow
 
@@ -318,7 +340,7 @@ Latest accepted CI: run #40, successful.
 
 Rules:
 
-- Codex prompts are written in Russian.
+- Codex prompts are written in English, except exact Russian UI literals that must remain in Russian.
 - File names, paths, components, variables and technical entities preserve their exact code names.
 - Complex work uses Plan → approval → Build.
 - GPT maintains documentation directly through GitHub.
@@ -330,59 +352,40 @@ Rules:
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Product mistaken for an accredited operator | Legal and reputational | Persistent demo disclaimer and clear positioning |
+| Product mistaken for an accredited operator | Legal and reputational | Persistent synthetic/non-legal/non-operator disclaimer |
 | Overbuilding a TMS | Long delay | Strict MVP and stage gates |
-| Public abuse tuning | Cost, instability or false positives | Conservative demo defaults, reverse-proxy-aware calibration and continued monitoring |
+| Public abuse tuning | Cost, instability or false positives | Conservative defaults and reverse-proxy-aware calibration |
 | Invalid state mutation | Corrupted demo history | Named actions, guarded persistence and append-only events |
-| Frontend stale-response mismatch | Misleading UI | Shared request-version guard and selection invariant |
-| Reset/transition overlap | Mixed state or confusing UI | Mutual exclusion in frontend and transactional backend operations |
-| Reset breaks event history | Corrupted demo scenario | Scoped delete plus deterministic recreation in one transaction |
+| Frontend stale-response mismatch | Misleading UI | Request-version guards and selection invariant |
+| Reset/transition overlap | Mixed state | UI mutual exclusion and transactional backend operations |
+| Product intro too large on small screens | Demo buried below the fold | Compact responsive hierarchy and targeted browser audit |
+| Premature deployment | Operational risk and distraction | Dedicated deployment stage only after explicit owner approval |
 | No demand after advertising | Lost time | Launch minimally, measure and refine |
 
-## 16. Delivery estimate
+## 16. Current next step
 
-Current estimate after Stage 12A:
+The next stage is intentionally not named yet.
 
-- technical demo MVP: approximately 84–89% complete;
-- credible public portfolio demo: approximately 70–78% complete;
-- working public demo MVP: roughly 1–2 focused working days if scope remains controlled;
-- polished portfolio release: roughly 3–6 focused working days;
-- real customer pilot remains a separate 3–6 week effort depending on authentication, integrations and operational requirements.
+The project continues locally. Before implementation, perform a controlled audit of the accepted Stage 14B product presentation and Stage 13A production baseline.
 
-## 17. Current next step
+Possible next local directions:
 
-Stage 12B: Browser-level happy path, UX/accessibility and recovery audit.
+- final product-content and workflow clarity audit;
+- targeted UX polish based on real local browser review;
+- privacy and analytics event design without vendor implementation;
+- expired-session cleanup design;
+- public-release readiness checklist;
+- StalarVision portfolio-page integration planning.
 
-This is an audit-first stage, not a broad redesign.
+The next stage must not automatically include:
 
-The stage should:
-
-- verify the complete browser-level happy path:
-  - entry;
-  - bootstrap;
-  - shipment selection;
-  - first transition;
-  - second transition;
-  - reset;
-  - restored deterministic state;
-- verify controlled error and recovery paths;
-- verify keyboard navigation;
-- verify visible focus;
-- verify disabled and loading states;
-- verify accessible labels and confirmations;
-- verify responsive behavior;
-- verify synthetic-demo disclaimer visibility;
-- verify the absence of stale UI after transition or reset;
-- add browser-level tests only for the critical happy path and reset;
-- allow only minimal targeted fixes discovered by the audit.
-
-The stage must not include:
-
-- production deployment;
+- VPS access;
+- host Nginx;
+- DNS;
+- TLS/Certbot;
+- firewall changes;
+- public deployment;
 - real integrations;
-- authentication or RBAC;
-- analytics dashboards;
-- redesign;
-- marketing landing page work;
-- generic accessibility-platform work;
-- broad component rewrites.
+- authentication/RBAC;
+- analytics implementation;
+- broad redesign.
