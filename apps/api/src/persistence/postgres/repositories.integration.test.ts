@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createDatabaseConnection } from "../../db/connection.js";
+import { GuestSessionCleanupService } from "../../services/guest-session-cleanup.js";
 import { createPostgresRepositories } from "./repositories.js";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -18,11 +19,14 @@ beforeAll(async () => {
   await migrate(connection.db, {
     migrationsFolder: "drizzle"
   });
-  await connection.db.execute(sql`truncate shipment_events, shipments, guest_sessions restart identity cascade`);
 
   return async () => {
     await connection.close();
   };
+});
+
+beforeEach(async () => {
+  await deleteCleanupTestSessions();
 });
 
 describe("PostgreSQL persistence repositories", () => {
@@ -225,6 +229,297 @@ describe("PostgreSQL persistence repositories", () => {
   });
 });
 
+describe("PostgreSQL expired guest-session cleanup", () => {
+  it("preserves active sessions and their child rows", async () => {
+    await connection.db.transaction(async (tx) => {
+      const transactionRepositories = createPostgresRepositories(tx);
+      const activeSessionId = await createSessionWithChildren("active", tx);
+      const service = new GuestSessionCleanupService(transactionRepositories, {
+        batchSize: 10,
+        maxBatches: 10
+      });
+
+      const result = await service.cleanupExpiredGuestSessions();
+
+      expect(result.deletedSessionCount).toBe(0);
+      await expectGuestSessionWithChildren(activeSessionId, true, tx);
+    });
+  });
+
+  it("preserves recently expired sessions and their child rows", async () => {
+    await connection.db.transaction(async (tx) => {
+      const transactionRepositories = createPostgresRepositories(tx);
+      const recentSessionId = await createSessionWithChildren("recently-expired", tx);
+      const service = new GuestSessionCleanupService(transactionRepositories, {
+        batchSize: 10,
+        maxBatches: 10
+      });
+
+      const result = await service.cleanupExpiredGuestSessions();
+
+      expect(result.deletedSessionCount).toBe(0);
+      await expectGuestSessionWithChildren(recentSessionId, true, tx);
+    });
+  });
+
+  it("deletes eligible expired sessions and relies on cascade for child rows", async () => {
+    await connection.db.transaction(async (tx) => {
+      const transactionRepositories = createPostgresRepositories(tx);
+      const expiredSessionId = await createSessionWithChildren("eligible-expired", tx);
+      const service = new GuestSessionCleanupService(transactionRepositories, {
+        batchSize: 10,
+        maxBatches: 10
+      });
+
+      const result = await service.cleanupExpiredGuestSessions();
+
+      expect(result).toEqual({
+        deletedSessionCount: 1,
+        completedBatchCount: 1,
+        safetyLimitReached: false
+      });
+      await expectGuestSessionWithChildren(expiredSessionId, false, tx);
+    });
+  });
+
+  it("deletes only eligible sessions from a mixed dataset", async () => {
+    await connection.db.transaction(async (tx) => {
+      const transactionRepositories = createPostgresRepositories(tx);
+      const activeSessionId = await createSessionWithChildren("active", tx);
+      const recentSessionId = await createSessionWithChildren("recently-expired", tx);
+      const expiredSessionIds = [
+        await createSessionWithChildren("eligible-expired", tx),
+        await createSessionWithChildren("eligible-expired", tx)
+      ];
+      const service = new GuestSessionCleanupService(transactionRepositories, {
+        batchSize: 10,
+        maxBatches: 10
+      });
+
+      const result = await service.cleanupExpiredGuestSessions();
+
+      expect(result.deletedSessionCount).toBe(2);
+      await expectGuestSessionWithChildren(activeSessionId, true, tx);
+      await expectGuestSessionWithChildren(recentSessionId, true, tx);
+      for (const sessionId of expiredSessionIds) {
+        await expectGuestSessionWithChildren(sessionId, false, tx);
+      }
+    });
+  });
+
+  it("uses bounded batches and deletes all eligible rows across service batches", async () => {
+    await connection.db.transaction(async (tx) => {
+      const transactionRepositories = createPostgresRepositories(tx);
+      const activeSessionId = await createSessionWithChildren("active", tx);
+      await createSessionWithChildren("eligible-expired", tx);
+      await createSessionWithChildren("eligible-expired", tx);
+      await createSessionWithChildren("eligible-expired", tx);
+
+      const firstBatchDeleted =
+      await transactionRepositories.guestSessionCleanup.deleteExpiredGuestSessionsBatch({
+        batchSize: 2
+      });
+      const service = new GuestSessionCleanupService(transactionRepositories, {
+        batchSize: 2,
+        maxBatches: 10
+      });
+
+      const result = await service.cleanupExpiredGuestSessions();
+
+      expect(firstBatchDeleted).toBe(2);
+      expect(result.deletedSessionCount).toBe(1);
+      await expectGuestSessionWithChildren(activeSessionId, true, tx);
+    });
+  });
+
+  it("is safe to rerun after all eligible rows were deleted", async () => {
+    await connection.db.transaction(async (tx) => {
+      const transactionRepositories = createPostgresRepositories(tx);
+      await createSessionWithChildren("eligible-expired", tx);
+      const service = new GuestSessionCleanupService(transactionRepositories, {
+        batchSize: 10,
+        maxBatches: 10
+      });
+
+      const firstResult = await service.cleanupExpiredGuestSessions();
+      const secondResult = await service.cleanupExpiredGuestSessions();
+
+      expect(firstResult.deletedSessionCount).toBe(1);
+      expect(secondResult.deletedSessionCount).toBe(0);
+    });
+  });
+
+  it("preserves sessions at the eligibility boundary and deletes strictly older sessions", async () => {
+    const result = await connection.db.transaction(async (tx) => {
+      const transactionRepositories = createPostgresRepositories(tx);
+      const boundarySessionId = await createSessionWithChildren(
+        "boundary-expired",
+        tx
+      );
+      const olderSessionId = await createSessionWithChildren("eligible-expired", tx);
+      const service = new GuestSessionCleanupService(transactionRepositories, {
+        batchSize: 10,
+        maxBatches: 10
+      });
+
+      return {
+        cleanup: await service.cleanupExpiredGuestSessions(),
+        boundarySessionId,
+        olderSessionId
+      };
+    });
+
+    expect(result.cleanup.deletedSessionCount).toBe(1);
+    await expectGuestSessionWithChildren(result.boundarySessionId, true);
+    await expectGuestSessionWithChildren(result.olderSessionId, false);
+  });
+
+  it("keeps concurrent cleanup operations safe", async () => {
+    const activeSessionId = await createSessionWithChildren("active");
+    await Promise.all([
+      createSessionWithChildren("eligible-expired"),
+      createSessionWithChildren("eligible-expired"),
+      createSessionWithChildren("eligible-expired")
+    ]);
+    const firstService = new GuestSessionCleanupService(repositories, {
+      batchSize: 2,
+      maxBatches: 10
+    });
+    const secondService = new GuestSessionCleanupService(repositories, {
+      batchSize: 2,
+      maxBatches: 10
+    });
+
+    const [firstResult, secondResult] = await Promise.all([
+      firstService.cleanupExpiredGuestSessions(),
+      secondService.cleanupExpiredGuestSessions()
+    ]);
+
+    expect(firstResult.deletedSessionCount + secondResult.deletedSessionCount).toBe(3);
+    await expectGuestSessionWithChildren(activeSessionId, true);
+    const remainingEligible = await countEligibleExpiredSessions();
+    expect(remainingEligible).toBe(0);
+  });
+});
+
 function tomorrow() {
   return new Date(Date.now() + 24 * 60 * 60 * 1000);
+}
+
+type SessionAge = "active" | "recently-expired" | "boundary-expired" | "eligible-expired";
+
+async function createSessionWithChildren(
+  age: SessionAge,
+  db: Pick<typeof connection.db, "execute"> = connection.db
+) {
+  const [session] = (await db.execute<{ id: string }>(sql`
+    with created_session as (
+      insert into guest_sessions (expires_at)
+      values (${expiresAtExpression(age)})
+      returning id
+    ),
+    created_shipment as (
+      insert into shipments (guest_session_id, reference, state)
+      select id, 'CLEANUP-TEST', 'draft'
+      from created_session
+      returning id, guest_session_id
+    ),
+    created_event as (
+      insert into shipment_events (
+        guest_session_id,
+        shipment_id,
+        event_type,
+        actor_role,
+        previous_state,
+        next_state
+      )
+      select
+        guest_session_id,
+        id,
+        'shipment_created',
+        'dispatcher',
+        'draft',
+        'draft'
+      from created_shipment
+    ),
+    created_usage as (
+      insert into guest_session_usage_limits (
+        guest_session_id,
+        rate_window_started_at,
+        updated_at
+      )
+      select id, now(), now()
+      from created_session
+    )
+    select id from created_session
+  `)).rows;
+
+  if (!session) {
+    throw new Error("Failed to create test guest session.");
+  }
+
+  return session.id;
+}
+
+function expiresAtExpression(age: SessionAge) {
+  switch (age) {
+    case "active":
+      return sql`now() + interval '1 hour'`;
+    case "recently-expired":
+      return sql`now() - interval '23 hours'`;
+    case "boundary-expired":
+      return sql`now() - interval '24 hours'`;
+    case "eligible-expired":
+      return sql`now() - interval '25 hours'`;
+  }
+}
+
+async function expectGuestSessionWithChildren(
+  sessionId: string,
+  expectedPresent: boolean,
+  db: Pick<typeof connection.db, "execute"> = connection.db
+) {
+  const [counts] = (await db.execute<{
+    session_count: number;
+    shipment_count: number;
+    event_count: number;
+    usage_count: number;
+  }>(sql`
+    select
+      (select count(*)::integer from guest_sessions where id = ${sessionId}) as session_count,
+      (select count(*)::integer from shipments where guest_session_id = ${sessionId}) as shipment_count,
+      (select count(*)::integer from shipment_events where guest_session_id = ${sessionId}) as event_count,
+      (select count(*)::integer from guest_session_usage_limits where guest_session_id = ${sessionId}) as usage_count
+  `)).rows;
+
+  const expectedCount = expectedPresent ? 1 : 0;
+
+  expect(counts).toEqual({
+    session_count: expectedCount,
+    shipment_count: expectedCount,
+    event_count: expectedCount,
+    usage_count: expectedCount
+  });
+}
+
+async function countEligibleExpiredSessions() {
+  const [result] = (await connection.db.execute<{ count: number }>(sql`
+    select count(*)::integer as count
+    from guest_sessions
+    where expires_at < now() - interval '24 hours'
+  `)).rows;
+
+  return result?.count ?? 0;
+}
+
+async function deleteCleanupTestSessions() {
+  await connection.db.execute(sql`
+    delete from guest_sessions
+    where exists (
+      select 1
+      from shipments
+      where shipments.guest_session_id = guest_sessions.id
+        and shipments.reference = 'CLEANUP-TEST'
+    )
+  `);
 }

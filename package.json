@@ -21,6 +21,7 @@
     "db:generate": "corepack pnpm --filter @etrn-flow/api db:generate",
     "db:migrate": "corepack pnpm --filter @etrn-flow/api db:migrate",
     "db:check": "corepack pnpm --filter @etrn-flow/api db:check",
+    "db:cleanup-expired-sessions": "corepack pnpm --filter @etrn-flow/api db:cleanup-expired-sessions",
     "check": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
   },
   "devDependencies": {

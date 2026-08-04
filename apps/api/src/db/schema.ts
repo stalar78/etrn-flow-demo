@@ -22,12 +22,18 @@ const workflowStateSqlList = shipmentWorkflowStates
 
 const demoRoleSqlList = demoRoles.map((role) => `'${role}'`).join(", ");
 
-export const guestSessions = pgTable("guest_sessions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull()
-});
+export const guestSessions = pgTable(
+  "guest_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => ({
+    expiresAtIndex: index("guest_sessions_expires_at_idx").on(table.expiresAt)
+  })
+);
 
 export const guestSessionUsageLimits = pgTable("guest_session_usage_limits", {
   guestSessionId: uuid("guest_session_id")

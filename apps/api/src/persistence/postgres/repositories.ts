@@ -25,6 +25,7 @@ type DbClient = Pick<
 export function createPostgresRepositories(db: DbClient): PostgresRepositories {
   return {
     guestSessions: new PostgresGuestSessionRepository(db),
+    guestSessionCleanup: new PostgresGuestSessionCleanupRepository(db),
     guestSessionUsage: new PostgresGuestSessionUsageRepository(db),
     shipments: new PostgresShipmentRepository(db),
     demoReset: new PostgresDemoResetRepository(db),
@@ -43,11 +44,22 @@ export function createPostgresRepositories(db: DbClient): PostgresRepositories {
 
 export type PostgresRepositories = {
   guestSessions: GuestSessionRepository;
+  guestSessionCleanup: GuestSessionCleanupRepository;
   guestSessionUsage: GuestSessionUsageRepository;
   shipments: ShipmentRepository;
   demoReset: DemoResetRepository;
   shipmentEvents: ShipmentEventRepository;
   transaction<T>(operation: (repositories: PostgresRepositories) => Promise<T>): Promise<T>;
+};
+
+export type DeleteExpiredGuestSessionsBatchInput = {
+  batchSize: number;
+};
+
+export type GuestSessionCleanupRepository = {
+  deleteExpiredGuestSessionsBatch(
+    input: DeleteExpiredGuestSessionsBatchInput
+  ): Promise<number>;
 };
 
 export type ConsumeBurstInput = {
@@ -122,6 +134,32 @@ class PostgresGuestSessionRepository implements GuestSessionRepository {
       .returning();
 
     return record ?? null;
+  }
+}
+
+class PostgresGuestSessionCleanupRepository implements GuestSessionCleanupRepository {
+  constructor(private readonly db: DbClient) {}
+
+  async deleteExpiredGuestSessionsBatch(input: DeleteExpiredGuestSessionsBatchInput) {
+    const records = await this.db.execute<{ deleted_count: number }>(sql`
+      with eligible_sessions as (
+        select id
+        from guest_sessions
+        where expires_at < now() - interval '24 hours'
+        order by expires_at asc, id asc
+        limit ${input.batchSize}
+        for update skip locked
+      ),
+      deleted_sessions as (
+        delete from guest_sessions
+        using eligible_sessions
+        where guest_sessions.id = eligible_sessions.id
+        returning guest_sessions.id
+      )
+      select count(*)::integer as deleted_count from deleted_sessions
+    `);
+
+    return records.rows[0]?.deleted_count ?? 0;
   }
 }
 
