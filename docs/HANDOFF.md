@@ -3,30 +3,33 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–12A are accepted and merged into `main`.
-- Stage 11 accepted merge commit: `a4652c312d06cdd7be9a28e141fae4c5a2da2557`.
-- Stage 12A accepted merge commit: `a14fdb4cf924f77e42dfab181593b2903a6bef73`.
-- Latest accepted product-code merge: Stage 12A, commit `a14fdb4cf924f77e42dfab181593b2903a6bef73`.
-- Latest accepted CI: run #40, successful.
-- Current next stage: Stage 12B browser-level happy path, UX/accessibility and recovery audit.
+- Stages 03–14B are accepted and merged into `main`.
+- Stage 12B accepted merge commit: `a1e829ebbd695abc19078362d33a04ffd2b68c15`.
+- Stage 13A accepted merge commit: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`.
+- Stage 14B accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
+- Latest accepted product-code merge: Stage 14B, commit `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
+- Latest accepted CI: run #50, successful.
+- Public deployment has not been performed.
+- Development continues locally; the next stage must be defined by a controlled audit and must not default automatically to VPS deployment.
 
 ## Current stage
 
-`Public abuse controls and concurrency semantics accepted → Browser-level UX/accessibility audit next`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Next local stage to be defined`
 
 ## Product boundary
 
-ETRN Flow is a public synthetic demonstration of a custom logistics workflow system.
+ETRN Flow is a public synthetic demonstration of a custom logistics workflow system built by one independent developer under the StalarVision brand.
 
 It is not:
 
 - an accredited EPD operator;
-- a legal electronic-document platform;
+- a legally significant electronic-document platform;
 - a replacement for an operator information system;
 - a production TMS;
-- a real customer workspace.
+- a real customer workspace;
+- connected to a real EPD operator or GIS EPD.
 
-Only synthetic data may be used. Do not invent customers, companies, drivers, vehicles, addresses, metrics, legal statuses or integrations.
+Only synthetic data may be used. Do not invent customers, companies, drivers, vehicles, addresses, metrics, legal statuses, integrations, testimonials or business results.
 
 ## Accepted technical baseline
 
@@ -38,117 +41,122 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
 - PostgreSQL with Drizzle ORM.
 - Validation with Zod.
 - Modular monolith in one repository.
-- CI covers install, lint, typecheck, tests, migrations, PostgreSQL integration tests and build.
+- CI covers install, lint, typecheck, tests, migrations, PostgreSQL integration tests, build, Chromium E2E and production-stack smoke.
 
-### Guest sessions
+### Guest sessions and abuse controls
 
 - Backend-issued httpOnly guest-session cookie.
 - Default 24-hour TTL.
 - Missing, malformed, unknown and expired sessions are replaced.
-- Reads, transitions and reset operations are scoped by server-resolved guest session.
-- Frontend does not receive or send a guest-session identifier as application data.
+- Reads, transitions and reset operations are scoped by the server-resolved guest session.
+- Frontend never receives or sends a guest-session identifier as application data.
 - `/health` is isolated from session/database behavior.
-
-### Guest-session quotas and public abuse controls
-
 - PostgreSQL-backed `guest_session_usage_limits`.
-- Protected POST endpoints:
-  - `POST /api/demo/bootstrap`;
-  - `POST /api/demo/reset`;
-  - `POST /api/shipments/:shipmentId/actions`.
-- Burst limiting runs after server-side guest-session resolution.
-- Burst accounting runs in a separate short PostgreSQL transaction.
-- Lifetime mutation and reset accounting run inside the same business transaction as the mutation.
-- Public synthetic-demo defaults:
-  - mutation limit: 60;
-  - reset limit: 8;
-  - burst window: 10 seconds;
-  - burst maximum: 6 protected POST requests.
-- Controlled errors:
-  - `guest_session_rate_limited`;
-  - `guest_session_quota_exceeded`;
-  - `demo_reset_quota_exceeded`;
-  - `guest_session_usage_unavailable`.
-- Quota and rate-limit accounting are isolated per guest session.
+- Protected POST endpoints: bootstrap, reset and shipment actions.
+- Burst accounting runs after guest-session resolution in a separate short transaction.
+- Lifetime mutation/reset accounting runs in the same business transaction as the mutation.
+- Default public-demo limits: 60 mutations, 8 resets, 6 protected POST requests per 10-second burst window.
 - Reset does not clear usage counters.
 - Read endpoints and `/health` do not spend mutation or reset quota.
 
-### Shipment read and bootstrap
+### Shipment bootstrap, reads and workflow
 
-- `GET /health`.
-- `GET /api/session`.
-- `POST /api/demo/bootstrap`.
-- `GET /api/shipments`.
-- `GET /api/shipments/:shipmentId`.
 - Three deterministic synthetic shipments:
   - `DEMO-001` → `awaiting_loading`;
   - `DEMO-002` → `in_transit`;
   - `DEMO-003` → `completed`.
 - Bootstrap is transactional, idempotent and concurrent-safe.
 - Shipment list/detail and events are guest-session scoped.
-- Event state chains are coherent and events are deterministically ordered.
-
-### Workflow transition API
-
-- `POST /api/shipments/:shipmentId/actions`.
-- Client sends only exact domain `action` and `actorRole`.
+- Event state chains are coherent and deterministically ordered.
+- Client sends only named domain action and actor role.
 - Client never sends `guestSessionId` or `nextState`.
-- Role and current-state validation use the framework-independent domain package.
+- Role/current-state validation uses the domain package.
 - Guarded shipment update and append-only event occur in one transaction.
-- Controlled errors include invalid request, forbidden role, invalid transition, not found, conflict and unavailable.
-- Concurrent requests cannot both apply the same expected-state transition.
-- For same-state concurrent transition race, the controlled loser may be:
-  - `transition_conflict`, if both requests validated the old state before the winner committed;
-  - `invalid_transition`, if the loser read the already-updated state after the winner committed.
-- `shipment_events.sequence` is a global table sequence:
-  - event list values for one shipment must remain strictly increasing and unique;
-  - global gaps are allowed;
-  - local `+1` must not be required.
-- Supported demo transitions currently exposed by the frontend:
-  - `draft → ready_for_dispatch` via `prepareDispatch` / `dispatcher`;
-  - `ready_for_dispatch → awaiting_loading` via `dispatch` / `dispatcher`;
-  - `awaiting_loading → loading` via `markVehicleArrived` / `warehouse`;
-  - `loading → in_transit` via `completeLoading` / `warehouse`;
-  - `draft → cancelled` via confirmed `cancel` / `dispatcher`.
+- Same-state concurrent transition race accepts one winner and one controlled loser.
+- `shipment_events.sequence` is globally generated; per-shipment values remain strictly increasing and unique, while gaps are allowed.
 
 ### Controlled demo reset
 
-- `POST /api/demo/reset`.
-- Request has no application payload.
-- Guest session is derived only from the existing server-issued cookie.
-- Dedicated `DemoResetService` owns orchestration.
-- The whole reset runs in one PostgreSQL transaction.
+- Reset derives session only from the server-issued cookie.
+- `DemoResetService` owns orchestration.
+- Reset runs in one PostgreSQL transaction.
 - Same-session reset requests are serialized through `pg_advisory_xact_lock`.
 - Only current-session shipment events and shipments are deleted.
-- The existing deterministic bootstrap definitions are reused.
-- Exact post-reset dataset:
-  - `DEMO-001` → `awaiting_loading`;
-  - `DEMO-002` → `in_transit`;
-  - `DEMO-003` → `completed`.
-- Coherent event histories are recreated from the accepted bootstrap definitions.
-- Controlled persistence/service failure response: `demo_reset_unavailable`.
-- Repeated and concurrent reset requests do not create duplicate shipments or event chains.
+- The deterministic bootstrap definitions are reused.
+- Repeated and concurrent resets do not create duplicate shipments or event chains.
 - Reset of one session does not alter another session.
 
-### Frontend workflow and reset behavior
+### Frontend workflow
 
 - Russian operational workspace with same-origin typed API client.
 - Initialization remains health → session → bootstrap → list → deterministic selection → detail.
 - Default selection prefers `DEMO-001`.
-- Action availability is derived from server-returned shipment state.
-- `DEMO-001` supports `awaiting_loading → loading → in_transit`.
-- Draft state presents prepare-dispatch and confirmed destructive cancellation.
-- Workflow progress renders the accepted happy path without pretending unsupported states are linear.
-- `completed`, `cancelled` and `attention_required` are separate terminal/branch presentations.
+- Action availability is derived from server-returned state.
+- Main demo path: `awaiting_loading → loading → in_transit`.
 - No optimistic workflow or reset mutation.
 - Reset requires explicit confirmation.
-- Reset and workflow transitions mutually exclude each other in UI controls and immediate handler guards.
-- Shipment switching and conflicting controls are disabled while transition or reset is pending.
-- After successful reset, the frontend fetches list and detail first, then applies one complete workspace snapshot.
-- `DEMO-001` is selected after reset when present.
-- If post-reset list or detail refresh fails, the latest complete valid list, selection, detail, action and timeline remain visible.
-- A detail request started before reset cannot overwrite the accepted post-reset snapshot.
-- Controlled errors restore a usable phase and do not leak rejected promises.
+- Reset and transitions mutually exclude each other in UI controls and immediate handler guards.
+- Post-reset list/detail are fetched before one complete workspace snapshot is applied.
+- Controlled failures restore a usable phase and preserve the last complete valid snapshot when appropriate.
+
+### Browser-level validation — Stage 12B
+
+- One mandatory Chromium E2E covers entry, bootstrap, `DEMO-001`, first transition, second transition, timeline update, reset and deterministic restoration.
+- Existing component/integration coverage remains in place.
+- `aria-busy` behavior was corrected.
+- CI run #46 passed completely.
+
+### Production container baseline — Stage 13A
+
+Accepted topology:
+
+```text
+Internet
+→ host Nginx + Certbot
+→ 127.0.0.1:8082
+→ web container with Nginx
+   ├─ serves Vite assets
+   ├─ proxies /api/* to api:3000
+   └─ proxies /health to api:3000
+→ api container
+→ postgres container
+```
+
+Implemented and accepted:
+
+- multi-stage API and web images;
+- non-root API runtime;
+- one-shot migration service;
+- production Compose with only `127.0.0.1:8082:8080` published;
+- isolated production network/volume names;
+- same-origin Nginx proxying;
+- API graceful shutdown;
+- container security/resource hardening appropriate to each runtime;
+- production-stack CI validation, image build, migrations, health, same-origin smoke, exact port assertion and cleanup.
+
+This stage did not deploy to a VPS.
+
+CI run #48 passed completely.
+
+### Guided product presentation — Stage 14B
+
+The public demo now includes:
+
+- compact `ProductIntro` above the operational workspace;
+- one page-level `h1`;
+- concise explanation of the business use case;
+- three capability points;
+- explicit independent-developer positioning for StalarVision;
+- a short `DEMO-001` usage cue;
+- a stronger synthetic/non-legal/non-operator disclaimer;
+- a single CTA to `https://stalarvision.ru`;
+- native `details/summary` disclosure;
+- responsive and accessibility-focused presentation tests;
+- E2E first-visit assertions before the accepted workflow path.
+
+The application still opens directly into the operational demo. No landing gate, routing, modal tour, sidebar, backend change, analytics implementation or deployment was added.
+
+CI run #50 passed completely, including both `Checks` and `Production stack` jobs.
 
 ## Core invariants
 
@@ -197,9 +205,7 @@ When detail is displayed:
 selectedShipmentId === detail.shipment.id
 ```
 
-Stale normal-detail, transition-refresh, conflict-refresh and pre-reset detail requests must not violate this invariant.
-
-After any completed or failed transition/reset flow, the interface must not remain stuck in `transitioning` or `resetting`.
+After completed or failed transition/reset flows, the interface must not remain stuck in `transitioning` or `resetting`.
 
 ## Testing state
 
@@ -208,103 +214,42 @@ Accepted coverage includes:
 - workflow domain transitions and denials;
 - persistence repositories and transaction behavior;
 - guest-session lifecycle and cross-session isolation;
-- bootstrap coherence and concurrency;
+- deterministic bootstrap and concurrency;
 - shipment list/detail API;
-- transition success, forbidden access, invalid transition, session isolation and concurrency conflict;
-- frontend API credentials and relative endpoints;
-- response validation and safe request payloads;
-- transition payload limited to `action` and `actorRole`;
-- reset request without client-selected session or state data;
-- initialization and deterministic `DEMO-001` selection;
-- Russian presentation labels and synthetic-data disclaimer;
-- sequential second action and refreshed action availability;
-- workflow progress and terminal/exception presentation;
-- confirmed cancellation;
-- transition and reset double-submit protection;
-- reset confirmation and cancellation;
-- exact reset restoration of all three deterministic shipments;
-- removal of pre-reset transition/cancellation history;
-- coherent recreated event chains;
-- repeated and concurrent reset safety;
-- reset isolation between guest sessions;
-- quota and rate-limit coverage for burst, lifetime mutation quota, reset quota, rollback and session isolation;
-- Stage 12A race contract coverage for same-state concurrent transitions;
-- controlled reset failure mapping;
-- atomic post-reset list/detail snapshot application;
-- preservation of the previous complete UI snapshot when post-reset detail refresh fails;
-- stale pre-reset detail protection;
-- restoration of list, action and reset interaction after failures.
+- transition success, denial, isolation and concurrency conflict;
+- controlled reset behavior and cross-session isolation;
+- quota/rate-limit exhaustion, rollback and isolation;
+- frontend initialization, action execution, reset, stale-request guards and recovery;
+- one Chromium E2E happy path with reset;
+- product intro, synthetic boundary, CTA and first-visit E2E assertions;
+- production Compose and same-origin stack smoke.
 
-Latest accepted CI: run #40, successful.
+Latest accepted CI: run #50, successful.
 
-## Next controlled stage — Stage 12B
+## Next controlled stage
 
-Browser-level happy path, UX/accessibility and recovery audit.
+The next stage is not yet named.
 
-This is an audit-first stage, not a broad redesign.
+Before any implementation, perform a local audit against the accepted Stage 14B product and Stage 13A container baseline. Candidate local directions may include:
 
-Stage 12B should:
+- final product-content and workflow clarity audit;
+- targeted UX polishing discovered from actual local browser use;
+- privacy/analytics decision design without implementation;
+- expired-session cleanup design;
+- public-release readiness checklist;
+- documentation/portfolio integration planning.
 
-- verify the complete browser-level happy path:
-  - entry;
-  - bootstrap;
-  - shipment selection;
-  - first transition;
-  - second transition;
-  - reset;
-  - restored deterministic state;
-- verify controlled error and recovery paths;
-- verify keyboard navigation;
-- verify visible focus;
-- verify disabled and loading states;
-- verify accessible labels and confirmations;
-- verify responsive behavior;
-- verify synthetic-demo disclaimer visibility;
-- verify the absence of stale UI after transition or reset;
-- add browser-level tests only for the critical happy path and reset;
-- allow only minimal targeted fixes discovered by the audit.
-
-Stage 12B should not include:
-
-- production deployment;
-- real integrations;
-- authentication or RBAC;
-- analytics dashboards;
-- redesign;
-- marketing landing page work;
-- generic accessibility-platform work;
-- attachments, PDF or signatures;
-- broad component rewrites.
-
-## Near-term stage order
-
-Next likely controlled steps are:
-
-1. browser-level happy path and UX/accessibility audit;
-2. production Compose/Nginx and runtime hardening review;
-3. deployment and smoke/security audit;
-4. portfolio presentation and public documentation;
-5. controlled traffic/analytics stage only after the deployment baseline is accepted.
-
-## Delivery estimate
-
-After Stage 12A:
-
-- technical demo MVP: approximately 84–89% complete;
-- credible public portfolio demo: approximately 70–78% complete;
-- working public demo MVP: roughly 1–2 focused working days if scope remains controlled;
-- polished portfolio release: roughly 3–6 focused working days;
-- real customer pilot is a separate 3–6 week effort depending on authentication, integrations and operational requirements.
+VPS, host Nginx, DNS, TLS and public deployment remain explicitly deferred until the owner approves a dedicated deployment stage.
 
 ## Agent workflow rules
 
 - GPT owns product direction, architecture review, scope and documentation.
-- Codex prompts are written in Russian.
+- Codex prompts are written in English, except exact Russian UI literals that must remain in Russian.
 - File names, paths, components, variables and technical entities remain exactly as used in the codebase.
 - Codex changes code and approved technical configuration only.
 - Codex must not edit documentation or Project Brain unless explicitly authorized.
 - Codex must not commit, push or deploy.
-- The owner commits and pushes approved stage changes.
+- The owner commits and pushes approved implementation-stage changes.
 - GPT creates and reviews PRs and performs available GitHub operations.
 - Merge requires explicit owner authorization.
 - After GPT updates `main`, the owner synchronizes with `git pull --ff-only origin main` before creating the next stage branch.
@@ -313,13 +258,14 @@ After Stage 12A:
 
 - accidental positioning as an accredited operator;
 - TMS scope expansion;
-- abuse-control tuning behind a reverse proxy;
-- incorrect client-IP assumptions in later deployment hardening;
-- cleanup of expired sessions;
+- public abuse-control tuning behind a reverse proxy;
+- incorrect client-IP assumptions during eventual deployment hardening;
+- expired-session cleanup;
 - reset quota semantics that make the demo unusable;
-- browser UX/accessibility gaps;
-- stale frontend recovery regressions after controlled errors;
-- premature integration claims.
+- product intro becoming too large on small screens;
+- stale frontend recovery regressions;
+- premature integration or legal-significance claims;
+- deployment beginning before the local product is accepted.
 
 ## Documents to read first in a new chat
 
