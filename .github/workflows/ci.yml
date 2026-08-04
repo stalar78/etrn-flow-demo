@@ -86,3 +86,88 @@ jobs:
             playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+
+  production-stack:
+    name: Production stack
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_DB: etrn_flow_ci
+      POSTGRES_USER: etrn_flow_ci
+      POSTGRES_PASSWORD: etrn_flow_ci_password
+      DATABASE_URL: postgres://etrn_flow_ci:etrn_flow_ci_password@postgres:5432/etrn_flow_ci
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+      LOG_LEVEL: info
+      GUEST_SESSION_COOKIE_NAME: etrn_guest_session
+      GUEST_SESSION_TTL_SECONDS: 86400
+      GUEST_SESSION_COOKIE_SECURE: false
+      GUEST_SESSION_COOKIE_SAME_SITE: lax
+      GUEST_SESSION_MUTATION_LIMIT: 60
+      GUEST_SESSION_RESET_LIMIT: 8
+      GUEST_SESSION_RATE_WINDOW_SECONDS: 10
+      GUEST_SESSION_RATE_MAX_REQUESTS: 6
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate production Compose configuration
+        run: docker compose -f infra/compose/docker-compose.prod.yml config
+
+      - name: Build production images
+        run: docker compose -f infra/compose/docker-compose.prod.yml build
+
+      - name: Start production database
+        run: docker compose -f infra/compose/docker-compose.prod.yml up -d postgres
+
+      - name: Run production migrations
+        run: docker compose -f infra/compose/docker-compose.prod.yml run --rm migrate
+
+      - name: Start production API and web
+        run: docker compose -f infra/compose/docker-compose.prod.yml up -d api web
+
+      - name: Wait for production stack health
+        run: |
+          for service in postgres api web; do
+            for attempt in {1..30}; do
+              status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "etrn-flow-prod-${service}" 2>/dev/null || true)"
+              if [ "$status" = "healthy" ]; then
+                echo "$service is healthy"
+                break
+              fi
+              if [ "$attempt" = "30" ]; then
+                echo "$service did not become healthy; status=$status"
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Production same-origin smoke
+        run: |
+          curl -fsS http://127.0.0.1:8082/health
+          curl -fsS -c cookies.txt http://127.0.0.1:8082/api/session | grep '"session"'
+          grep etrn_guest_session cookies.txt
+          curl -fsS -b cookies.txt -X POST http://127.0.0.1:8082/api/demo/bootstrap | grep '"shipmentCount":3'
+          curl -fsS -b cookies.txt http://127.0.0.1:8082/api/shipments | grep 'DEMO-001'
+
+      - name: Verify production port exposure
+        run: |
+          web_ports="$(docker inspect etrn-flow-prod-web --format '{{json .NetworkSettings.Ports}}')"
+          api_ports="$(docker inspect etrn-flow-prod-api --format '{{json .NetworkSettings.Ports}}')"
+          postgres_ports="$(docker inspect etrn-flow-prod-postgres --format '{{json .NetworkSettings.Ports}}')"
+          echo "web: $web_ports"
+          echo "api: $api_ports"
+          echo "postgres: $postgres_ports"
+          echo "$web_ports" | grep '"8080/tcp":\[{"HostIp":"127.0.0.1","HostPort":"8082"}\]'
+          echo "$api_ports" | grep '"3000/tcp":null'
+          echo "$postgres_ports" | grep '"5432/tcp":null'
+
+      - name: Print production stack logs on failure
+        if: failure()
+        run: docker compose -f infra/compose/docker-compose.prod.yml logs --no-color
+
+      - name: Remove production stack
+        if: always()
+        run: docker compose -f infra/compose/docker-compose.prod.yml down -v --remove-orphans
