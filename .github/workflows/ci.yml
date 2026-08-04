@@ -66,3 +66,23 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: corepack pnpm exec playwright install --with-deps chromium
+
+      - name: Browser E2E tests
+        id: browser-e2e
+        run: corepack pnpm e2e
+        env:
+          DATABASE_URL: postgres://etrn_flow_test:etrn_flow_test_password@127.0.0.1:5432/etrn_flow_test
+
+      - name: Upload Playwright failure artifacts
+        if: failure() && steps.browser-e2e.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
