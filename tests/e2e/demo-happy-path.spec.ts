@@ -3,7 +3,12 @@ import { expect, test } from "@playwright/test";
 test("completes the demo happy path and restores the dataset after reset", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Демо рабочего процесса перевозки" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Демо системы для управления этапами перевозки" })).toBeVisible();
+  await expect(page.getByText(/Начните с DEMO-001: подтвердите прибытие автомобиля/)).toBeVisible();
+  await expect(page.getByText(/Демо работает только с синтетическими данными/)).toBeVisible();
+  const cta = page.getByRole("link", { name: "Обсудить похожую систему" });
+  await expect(cta).toBeVisible();
+  await expect(cta).toHaveAttribute("href", "https://stalarvision.ru");
   await expect(
     page.getByText("Демонстрационный интерфейс. Используются только синтетические данные.")
   ).toBeVisible();

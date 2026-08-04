@@ -18,6 +18,7 @@ import { AppHeader } from "./components/AppHeader";
 import { DemoResetControl } from "./components/DemoResetControl";
 import { EventTimeline } from "./components/EventTimeline";
 import { Notice } from "./components/Notice";
+import { ProductIntro } from "./components/ProductIntro";
 import { ShipmentDetail } from "./components/ShipmentDetail";
 import { ShipmentList } from "./components/ShipmentList";
 import { WorkflowActions } from "./components/WorkflowActions";
@@ -310,6 +311,8 @@ export function App() {
         className="workspace-main"
         aria-busy={phase === "initializing" || phase === "bootstrapping" || phase === "transitioning" || phase === "resetting"}
       >
+        <ProductIntro />
+
         {phase === "initializing" ? (
           <Notice>Подключаемся к API и готовим демо-сеанс...</Notice>
         ) : null}

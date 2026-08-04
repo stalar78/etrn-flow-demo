@@ -13,11 +13,8 @@ export function AppHeader({ apiStatus }: AppHeaderProps) {
     <header className="app-header">
       <div>
         <p className="eyebrow">ETRN Flow</p>
-        <h1>Демо рабочего процесса перевозки</h1>
-        <p className="subtitle">
-          Короткий вертикальный сценарий: демо-сеанс, перевозки, история событий и одно
-          серверно подтвержденное действие.
-        </p>
+        <p className="header-title">Демонстрационный рабочий интерфейс</p>
+        <p className="subtitle">Гостевой сценарий перевозки, статусы, действия и история событий.</p>
       </div>
       <div className="header-meta">
         <p className="disclaimer">
