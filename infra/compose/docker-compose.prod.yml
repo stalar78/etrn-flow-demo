@@ -1,0 +1,121 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: etrn-flow-prod-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - etrn-flow-prod-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: &bounded-logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: etrn-flow-api:prod
+    command: ["node", "dist/db/migrate.js"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    logging: *bounded-logs
+
+  api:
+    container_name: etrn-flow-prod-api
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: etrn-flow-api:prod
+    environment:
+      NODE_ENV: ${NODE_ENV:?NODE_ENV is required}
+      API_HOST: ${API_HOST:?API_HOST is required}
+      API_PORT: ${API_PORT:?API_PORT is required}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      LOG_LEVEL: ${LOG_LEVEL:?LOG_LEVEL is required}
+      GUEST_SESSION_COOKIE_NAME: ${GUEST_SESSION_COOKIE_NAME:?GUEST_SESSION_COOKIE_NAME is required}
+      GUEST_SESSION_TTL_SECONDS: ${GUEST_SESSION_TTL_SECONDS:?GUEST_SESSION_TTL_SECONDS is required}
+      GUEST_SESSION_COOKIE_SECURE: ${GUEST_SESSION_COOKIE_SECURE:?GUEST_SESSION_COOKIE_SECURE is required}
+      GUEST_SESSION_COOKIE_SAME_SITE: ${GUEST_SESSION_COOKIE_SAME_SITE:?GUEST_SESSION_COOKIE_SAME_SITE is required}
+      GUEST_SESSION_MUTATION_LIMIT: ${GUEST_SESSION_MUTATION_LIMIT:?GUEST_SESSION_MUTATION_LIMIT is required}
+      GUEST_SESSION_RESET_LIMIT: ${GUEST_SESSION_RESET_LIMIT:?GUEST_SESSION_RESET_LIMIT is required}
+      GUEST_SESSION_RATE_WINDOW_SECONDS: ${GUEST_SESSION_RATE_WINDOW_SECONDS:?GUEST_SESSION_RATE_WINDOW_SECONDS is required}
+      GUEST_SESSION_RATE_MAX_REQUESTS: ${GUEST_SESSION_RATE_MAX_REQUESTS:?GUEST_SESSION_RATE_MAX_REQUESTS is required}
+    expose:
+      - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.50
+    restart: unless-stopped
+    logging: *bounded-logs
+
+  web:
+    container_name: etrn-flow-prod-web
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    image: etrn-flow-web:prod
+    ports:
+      - "127.0.0.1:8082:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    pids_limit: 128
+    mem_limit: 128m
+    cpus: 0.50
+    restart: unless-stopped
+    logging: *bounded-logs
+
+volumes:
+  etrn-flow-prod-postgres-data:
+
+networks:
+  default:
+    name: etrn-flow-prod
