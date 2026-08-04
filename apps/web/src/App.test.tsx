@@ -75,6 +75,19 @@ describe("App", () => {
   it("shows initialization, bootstraps data, and selects DEMO-001 by default", async () => {
     render(<App />);
 
+    expect(screen.getByRole("heading", {
+      level: 1,
+      name: "Демо системы для управления этапами перевозки"
+    })).toBeInTheDocument();
+    expect(screen.getByText(/Начните с DEMO-001: подтвердите прибытие автомобиля/)).toBeInTheDocument();
+    expect(screen.getByText(/Демо работает только с синтетическими данными/)).toBeInTheDocument();
+    expect(screen.getByText(/одним независимым разработчиком StalarVision/)).toBeInTheDocument();
+
+    const cta = screen.getByRole("link", { name: "Обсудить похожую систему" });
+    expect(cta).toHaveAttribute("href", "https://stalarvision.ru");
+    expect(cta).toHaveAttribute("target", "_blank");
+    expect(cta).toHaveAttribute("rel", "noreferrer");
+    expect(screen.getByText("О возможностях демо")).toBeInTheDocument();
     expect(screen.getByText("Подключаемся к API и готовим демо-сеанс...")).toBeInTheDocument();
 
     await screen.findByRole("button", { name: /DEMO-001/i });
