@@ -308,7 +308,7 @@ export function App() {
 
       <main
         className="workspace-main"
-        aria-busy={phase === "initializing" || phase === "bootstrapping" || phase === "resetting"}
+        aria-busy={phase === "initializing" || phase === "bootstrapping" || phase === "transitioning" || phase === "resetting"}
       >
         {phase === "initializing" ? (
           <Notice>Подключаемся к API и готовим демо-сеанс...</Notice>
