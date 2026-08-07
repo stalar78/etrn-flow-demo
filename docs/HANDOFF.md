@@ -3,7 +3,7 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–15D are accepted.
+- Stages 03–15D and Stage 16A–16B are accepted.
 - Stage 12B accepted merge commit: `a1e829ebbd695abc19078362d33a04ffd2b68c15`.
 - Stage 13A accepted merge commit: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`.
 - Stage 14B accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
@@ -11,12 +11,15 @@
 - Stage 15C accepted product-code merge commit: `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`.
 - Latest accepted Stage 15C PR CI: run #59, successful, including `Checks`, `Security scan` and `Production stack`.
 - Stage 15D was evidence-only and made no application-code, schema, Docker/Compose or dependency changes.
+- Stage 16A accepted merge commit: `5eefbc611c3ac3e0d5bdd3cffa49b1cdaf3b80c3`; production web loopback binding is `127.0.0.1:8083`.
+- Stage 16B accepted merge commit: `c4e3ffbed9cf0f05c7c849755823e13a2ad605d6`; full and production dependency audits are clean after dev-tooling security maintenance.
+- Stage 16B PR CI: run #69, successful.
 - Public deployment has not been performed.
 - Development continues locally.
 
 ## Current stage
 
-`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16 controlled deployment next`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 controlled deployment in progress`
 
 ## Product boundary
 
@@ -163,7 +166,7 @@ Accepted topology:
 ```text
 Internet
 → host Nginx + Certbot
-→ 127.0.0.1:8082
+→ 127.0.0.1:8083
 → web container with Nginx
    ├─ serves Vite assets
    ├─ proxies /api/* to api:3000
@@ -177,7 +180,7 @@ Implemented and accepted:
 - multi-stage API and web images;
 - non-root API runtime;
 - one-shot migration service;
-- production Compose with only `127.0.0.1:8082:8080` published;
+- production Compose with only `127.0.0.1:8083:8080` published;
 - isolated production volume naming within the intended deployment;
 - same-origin Nginx proxying;
 - API graceful shutdown;
@@ -265,17 +268,17 @@ Accepted coverage includes:
 - exact CSP/security-header response assertions;
 - local release startup, backup/restore and runtime restart rehearsal.
 
-Latest accepted Stage 15C PR CI: run #59, successful.
+Latest accepted Stage 16B PR CI: run #69, successful.
 
 ## Next controlled stage
 
-The next controlled stage is Stage 16 — controlled deployment.
+Stage 16 controlled deployment is active; repository pre-deployment gates Stage 16A and Stage 16B are accepted.
 
 It must separately plan and gate:
 
 - production secret provisioning outside Git;
 - VPS placement and directory ownership;
-- host Nginx reverse proxy to `127.0.0.1:8082`;
+- host Nginx reverse proxy to `127.0.0.1:8083`;
 - `X-Forwarded-Proto` and other required proxy headers;
 - TLS/Certbot and HSTS decision at the host boundary;
 - firewall exposure;
