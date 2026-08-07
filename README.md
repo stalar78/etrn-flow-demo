@@ -4,13 +4,13 @@
 
 ## Статус
 
-Текущая стадия: `Stages 03–14B accepted → Next local stage to be defined`.
+Текущая стадия: `Stages 03–15B accepted → Public-release security/privacy hardening next`.
 
 Последний принятый commit в `main`:
 
-`71a586aab08044c42b8c07f68e0a02cd2529e2e3`
+`b4868f17563b256b4ca1973f11390f02ac46a942`
 
-Последний принятый GitHub CI: run #50, успешный.
+Последний принятый GitHub CI для Stage 15B: run #54, успешный.
 
 Публичный deployment ещё не выполнялся. Разработка продолжается локально.
 
@@ -32,7 +32,27 @@
 - production API/web images and production Compose baseline;
 - same-origin Nginx proxy inside the web container;
 - CI production-stack build, migration, health, smoke and port-exposure checks;
-- compact product intro, independent-developer positioning and CTA to StalarVision.
+- compact product intro, independent-developer positioning and CTA to StalarVision;
+- bounded manual cleanup of expired guest sessions and cascaded synthetic data.
+
+## Lifecycle cleanup
+
+Stage 15B добавил ручную maintenance-команду:
+
+```bash
+corepack pnpm db:cleanup-expired-sessions
+```
+
+Принятая политика:
+
+- удаляются только guest sessions, истёкшие более 24 часов назад;
+- cutoff вычисляется временем PostgreSQL;
+- batch size — 500;
+- максимум 100 batches за один запуск;
+- удаление идёт oldest-first;
+- параллельные cleanup безопасно координируются через `FOR UPDATE SKIP LOCKED`;
+- `shipments`, `shipment_events` и `guest_session_usage_limits` удаляются существующими `ON DELETE CASCADE`;
+- scheduler, HTTP cleanup endpoint и request-driven cleanup не добавлены.
 
 ## Основной демо-сценарий
 
@@ -106,15 +126,14 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-Следующая стадия пока намеренно не названа.
+Следующий контролируемый этап — public-release security/privacy hardening перед release rehearsal.
 
-Сначала проводится локальный аудит текущего продукта и выбирается один контролируемый следующий шаг. Возможные направления:
+Фокус следующего этапа:
 
-- финальная проверка понятности демо и продуктовой подачи;
-- точечная UX-полировка;
-- privacy/analytics design без внедрения поставщика;
-- проектирование cleanup истёкших guest sessions;
-- public-release readiness checklist;
-- план интеграции демо в портфолио StalarVision.
+- dependency и secret scanning;
+- проверка production headers/CSP boundary;
+- privacy/cookie boundary без выдуманных юридических утверждений;
+- public-release security checklist;
+- определение того, какие вопросы относятся к host/deployment stage и не должны внедряться локально преждевременно.
 
 Deployment не начинается без отдельного этапа и явного решения владельца.

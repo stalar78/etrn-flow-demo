@@ -3,18 +3,19 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–14B are accepted and merged into `main`.
+- Stages 03–15B are accepted and merged into `main`.
 - Stage 12B accepted merge commit: `a1e829ebbd695abc19078362d33a04ffd2b68c15`.
 - Stage 13A accepted merge commit: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`.
 - Stage 14B accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
-- Latest accepted product-code merge: Stage 14B, commit `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
-- Latest accepted CI: run #50, successful.
+- Stage 15B accepted merge commit: `b4868f17563b256b4ca1973f11390f02ac46a942`.
+- Latest accepted product-code merge: Stage 15B.
+- Latest accepted GitHub CI for Stage 15B: run #54, successful, including `Checks` and `Production stack`.
 - Public deployment has not been performed.
-- Development continues locally; the next stage must be defined by a controlled audit and must not default automatically to VPS deployment.
+- Development continues locally.
 
 ## Current stage
 
-`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Next local stage to be defined`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Public-release security/privacy hardening next`
 
 ## Product boundary
 
@@ -59,6 +60,24 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
 - Reset does not clear usage counters.
 - Read endpoints and `/health` do not spend mutation or reset quota.
 
+### Expired guest-session cleanup — Stage 15B
+
+Accepted lifecycle policy:
+
+- a session is eligible only when `expires_at < now() - interval '24 hours'`;
+- PostgreSQL database time is authoritative;
+- batch size: 500;
+- maximum batches per run: 100;
+- deterministic order: `expires_at ASC, id ASC`;
+- bounded selection uses `FOR UPDATE SKIP LOCKED`;
+- cleanup deletes only from `guest_sessions`;
+- `shipments`, `shipment_events` and `guest_session_usage_limits` are removed by existing `ON DELETE CASCADE` relationships;
+- the manual command is `corepack pnpm db:cleanup-expired-sessions`;
+- cleanup is safe to rerun and reports aggregate counts only;
+- no HTTP endpoint, startup cleanup, request-driven cleanup or scheduler was added.
+
+The `guest_sessions.expires_at` cleanup path is indexed by `guest_sessions_expires_at_idx`.
+
 ### Shipment bootstrap, reads and workflow
 
 - Three deterministic synthetic shipments:
@@ -67,13 +86,11 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
   - `DEMO-003` → `completed`.
 - Bootstrap is transactional, idempotent and concurrent-safe.
 - Shipment list/detail and events are guest-session scoped.
-- Event state chains are coherent and deterministically ordered.
 - Client sends only named domain action and actor role.
 - Client never sends `guestSessionId` or `nextState`.
 - Role/current-state validation uses the domain package.
 - Guarded shipment update and append-only event occur in one transaction.
 - Same-state concurrent transition race accepts one winner and one controlled loser.
-- `shipment_events.sequence` is globally generated; per-shipment values remain strictly increasing and unique, while gaps are allowed.
 
 ### Controlled demo reset
 
@@ -96,15 +113,13 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
 - No optimistic workflow or reset mutation.
 - Reset requires explicit confirmation.
 - Reset and transitions mutually exclude each other in UI controls and immediate handler guards.
-- Post-reset list/detail are fetched before one complete workspace snapshot is applied.
 - Controlled failures restore a usable phase and preserve the last complete valid snapshot when appropriate.
 
-### Browser-level validation — Stage 12B
+### Browser-level validation — Stage 12B / Stage 14B
 
 - One mandatory Chromium E2E covers entry, bootstrap, `DEMO-001`, first transition, second transition, timeline update, reset and deterministic restoration.
+- First-visit assertions cover product heading, instruction, disclaimer and CTA.
 - Existing component/integration coverage remains in place.
-- `aria-busy` behavior was corrected.
-- CI run #46 passed completely.
 
 ### Production container baseline — Stage 13A
 
@@ -134,29 +149,7 @@ Implemented and accepted:
 - container security/resource hardening appropriate to each runtime;
 - production-stack CI validation, image build, migrations, health, same-origin smoke, exact port assertion and cleanup.
 
-This stage did not deploy to a VPS.
-
-CI run #48 passed completely.
-
-### Guided product presentation — Stage 14B
-
-The public demo now includes:
-
-- compact `ProductIntro` above the operational workspace;
-- one page-level `h1`;
-- concise explanation of the business use case;
-- three capability points;
-- explicit independent-developer positioning for StalarVision;
-- a short `DEMO-001` usage cue;
-- a stronger synthetic/non-legal/non-operator disclaimer;
-- a single CTA to `https://stalarvision.ru`;
-- native `details/summary` disclosure;
-- responsive and accessibility-focused presentation tests;
-- E2E first-visit assertions before the accepted workflow path.
-
-The application still opens directly into the operational demo. No landing gate, routing, modal tour, sidebar, backend change, analytics implementation or deployment was added.
-
-CI run #50 passed completely, including both `Checks` and `Production stack` jobs.
+No VPS deployment has been performed.
 
 ## Core invariants
 
@@ -199,13 +192,22 @@ server-resolved guest session
 → commit or rollback
 ```
 
+Expired-session maintenance must follow:
+
+```text
+manual maintenance command
+→ database-authoritative 24h grace cutoff
+→ bounded oldest-first batch
+→ delete guest_sessions only
+→ existing ON DELETE CASCADE
+→ aggregate result
+```
+
 When detail is displayed:
 
 ```text
 selectedShipmentId === detail.shipment.id
 ```
-
-After completed or failed transition/reset flows, the interface must not remain stuck in `transitioning` or `resetting`.
 
 ## Testing state
 
@@ -214,6 +216,7 @@ Accepted coverage includes:
 - workflow domain transitions and denials;
 - persistence repositories and transaction behavior;
 - guest-session lifecycle and cross-session isolation;
+- expired-session cleanup eligibility, batching, cascade behavior, idempotency and concurrent safety;
 - deterministic bootstrap and concurrency;
 - shipment list/detail API;
 - transition success, denial, isolation and concurrency conflict;
@@ -224,35 +227,35 @@ Accepted coverage includes:
 - product intro, synthetic boundary, CTA and first-visit E2E assertions;
 - production Compose and same-origin stack smoke.
 
-Latest accepted CI: run #50, successful.
+Latest accepted Stage 15B CI: run #54, successful.
 
 ## Next controlled stage
 
-The next stage is not yet named.
+The next controlled stage is public-release security/privacy hardening before release rehearsal.
 
-Before any implementation, perform a local audit against the accepted Stage 14B product and Stage 13A container baseline. Candidate local directions may include:
+The stage should determine and implement only the local/repository changes genuinely required before public launch, including:
 
-- final product-content and workflow clarity audit;
-- targeted UX polishing discovered from actual local browser use;
-- privacy/analytics decision design without implementation;
-- expired-session cleanup design;
-- public-release readiness checklist;
-- documentation/portfolio integration planning.
+- dependency and secret scanning boundary;
+- production header/CSP decision;
+- privacy/cookie boundary for the strictly necessary guest-session cookie;
+- pre-launch security checklist;
+- clear separation between repository-level hardening and later host/deployment configuration.
 
-VPS, host Nginx, DNS, TLS and public deployment remain explicitly deferred until the owner approves a dedicated deployment stage.
+Analytics implementation remains deferred. Legal/privacy statements must not be invented or presented as professional legal advice.
+
+VPS, host Nginx, DNS, TLS, firewall and public deployment remain deferred to a dedicated deployment stage.
 
 ## Agent workflow rules
 
 - GPT owns product direction, architecture review, scope and documentation.
-- Codex prompts are written in English, except exact Russian UI literals that must remain in Russian.
-- File names, paths, components, variables and technical entities remain exactly as used in the codebase.
+- Все промпты для Codex пишутся на русском языке.
+- Названия файлов, путей, компонентов, переменных, команд и других технических сущностей сохраняются в точном виде из кодовой базы.
 - Codex changes code and approved technical configuration only.
 - Codex must not edit documentation or Project Brain unless explicitly authorized.
-- Codex must not commit, push or deploy.
-- The owner commits and pushes approved implementation-stage changes.
+- Codex must not commit, push or deploy unless separately authorized.
 - GPT creates and reviews PRs and performs available GitHub operations.
-- Merge requires explicit owner authorization.
-- After GPT updates `main`, the owner synchronizes with `git pull --ff-only origin main` before creating the next stage branch.
+- The owner has authorized Ready-for-review transitions and squash merges after successful review and green CI; deployment remains separately gated.
+- After GPT updates `main`, the owner synchronizes with `git pull --ff-only origin main` before the next implementation branch.
 
 ## Active risks
 
@@ -260,12 +263,12 @@ VPS, host Nginx, DNS, TLS and public deployment remain explicitly deferred until
 - TMS scope expansion;
 - public abuse-control tuning behind a reverse proxy;
 - incorrect client-IP assumptions during eventual deployment hardening;
-- expired-session cleanup;
-- reset quota semantics that make the demo unusable;
-- product intro becoming too large on small screens;
+- backup/restore procedure not yet rehearsed;
+- privacy/cookie wording not yet finalized;
+- CSP/header boundary not yet finalized;
 - stale frontend recovery regressions;
 - premature integration or legal-significance claims;
-- deployment beginning before the local product is accepted.
+- deployment beginning before release readiness is accepted.
 
 ## Documents to read first in a new chat
 
