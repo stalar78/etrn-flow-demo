@@ -166,11 +166,11 @@ jobs:
 
       - name: Production same-origin smoke
         run: |
-          curl -fsS http://127.0.0.1:8082/health
-          curl -fsS -c cookies.txt http://127.0.0.1:8082/api/session | grep '"session"'
+          curl -fsS http://127.0.0.1:8083/health
+          curl -fsS -c cookies.txt http://127.0.0.1:8083/api/session | grep '"session"'
           grep etrn_guest_session cookies.txt
-          curl -fsS -b cookies.txt -X POST http://127.0.0.1:8082/api/demo/bootstrap | grep '"shipmentCount":3'
-          curl -fsS -b cookies.txt http://127.0.0.1:8082/api/shipments | grep 'DEMO-001'
+          curl -fsS -b cookies.txt -X POST http://127.0.0.1:8083/api/demo/bootstrap | grep '"shipmentCount":3'
+          curl -fsS -b cookies.txt http://127.0.0.1:8083/api/shipments | grep 'DEMO-001'
 
       - name: Production response-header smoke
         run: |
@@ -214,11 +214,11 @@ jobs:
             assert_header "$headers_file" "Permissions-Policy" "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
           }
 
-          curl -fsS -D root.headers -o root.html http://127.0.0.1:8082/
+          curl -fsS -D root.headers -o root.html http://127.0.0.1:8083/
           assert_security_headers root.headers
           assert_header root.headers "Cache-Control" "no-store"
 
-          curl -fsS -D index.headers -o /dev/null http://127.0.0.1:8082/index.html
+          curl -fsS -D index.headers -o /dev/null http://127.0.0.1:8083/index.html
           assert_security_headers index.headers
           assert_header index.headers "Cache-Control" "no-store"
 
@@ -229,14 +229,14 @@ jobs:
             exit 1
           fi
 
-          curl -fsS -D asset.headers -o /dev/null "http://127.0.0.1:8082${asset_path}"
+          curl -fsS -D asset.headers -o /dev/null "http://127.0.0.1:8083${asset_path}"
           assert_security_headers asset.headers
           assert_header asset.headers "Cache-Control" "public, max-age=31536000, immutable"
 
-          curl -fsS -D health.headers -o /dev/null http://127.0.0.1:8082/health
+          curl -fsS -D health.headers -o /dev/null http://127.0.0.1:8083/health
           assert_security_headers health.headers
 
-          curl -fsS -D session.headers -o /dev/null -c cookies.txt http://127.0.0.1:8082/api/session
+          curl -fsS -D session.headers -o /dev/null -c cookies.txt http://127.0.0.1:8083/api/session
           assert_security_headers session.headers
 
       - name: Verify production port exposure
@@ -247,7 +247,7 @@ jobs:
           echo "web: $web_ports"
           echo "api: $api_ports"
           echo "postgres: $postgres_ports"
-          echo "$web_ports" | grep '"8080/tcp":\[{"HostIp":"127.0.0.1","HostPort":"8082"}\]'
+          echo "$web_ports" | grep '"8080/tcp":\[{"HostIp":"127.0.0.1","HostPort":"8083"}\]'
           echo "$api_ports" | grep '"3000/tcp":null'
           echo "$postgres_ports" | grep '"5432/tcp":null'
 

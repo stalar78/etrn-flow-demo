@@ -91,7 +91,7 @@ services:
       dockerfile: apps/web/Dockerfile
     image: etrn-flow-web:prod
     ports:
-      - "127.0.0.1:8082:8080"
+      - "127.0.0.1:8083:8080"
     depends_on:
       api:
         condition: service_healthy
