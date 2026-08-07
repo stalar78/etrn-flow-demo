@@ -4,12 +4,12 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stages 03–15D accepted; Stage 16 controlled deployment is next
+- Current stage: Stages 03–15D and Stage 16A–16B accepted; Stage 16 controlled deployment is in progress
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
-- Latest accepted product-code merge commit: `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69` (Stage 15C)
-- Latest accepted Stage 15C PR CI: run #59, successful
+- Latest accepted repository merge commit: `c4e3ffbed9cf0f05c7c849755823e13a2ad605d6` (Stage 16B)
+- Latest accepted Stage 16B PR CI: run #69, successful
 - Stage 15D: evidence-only local release rehearsal; no repository implementation changes
 - Public deployment status: not deployed
 
@@ -109,7 +109,9 @@ Merged/accepted:
 - Stage 15A — public-release readiness audit;
 - Stage 15B — expired guest-session cleanup and lifecycle hardening;
 - Stage 15C — repository-level public-release security hardening;
-- Stage 15D — local release, backup/restore and restart rehearsal (evidence-only).
+- Stage 15D — local release, backup/restore and restart rehearsal (evidence-only);
+- Stage 16A — production host-port isolation on `127.0.0.1:8083`;
+- Stage 16B — dev-tooling security maintenance with clean full and production dependency audits.
 
 Accepted merge commits:
 
@@ -117,7 +119,9 @@ Accepted merge commits:
 - Stage 13A: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`;
 - Stage 14B: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`;
 - Stage 15B: `b4868f17563b256b4ca1973f11390f02ac46a942`;
-- Stage 15C: `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`.
+- Stage 15C: `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`;
+- Stage 16A: `5eefbc611c3ac3e0d5bdd3cffa49b1cdaf3b80c3`;
+- Stage 16B: `c4e3ffbed9cf0f05c7c849755823e13a2ad605d6`.
 
 Stage 15D required no product-code merge.
 
@@ -244,7 +248,7 @@ Accepted GitHub CI jobs:
 - exact host-port exposure assertion;
 - cleanup.
 
-Latest accepted Stage 15C PR CI: run #59, successful.
+Latest accepted Stage 16B PR CI: run #69, successful.
 
 ## 10. Production container baseline
 
@@ -253,7 +257,7 @@ Accepted topology:
 ```text
 Internet
 → host Nginx + Certbot
-→ 127.0.0.1:8082
+→ 127.0.0.1:8083
 → web container with Nginx
    ├─ serves Vite assets
    ├─ proxies /api/* to api:3000
@@ -269,7 +273,7 @@ Accepted implementation:
 - non-root API user;
 - multi-stage web image with Nginx runtime;
 - one-shot migration service;
-- production Compose with only `127.0.0.1:8082:8080` published;
+- production Compose with only `127.0.0.1:8083:8080` published;
 - same-origin proxying;
 - bounded logs and resource limits;
 - container hardening appropriate to API and web runtime constraints;
@@ -382,6 +386,7 @@ selectedShipmentId === detail.shipment.id
 - Production dependency audit is enforced in CI.
 - Full-history Gitleaks secret scanning is enforced in CI.
 - Strict CSP and security response headers are asserted against production-like responses.
+- Full and production dependency audits were clean at the accepted Stage 16B gate.
 - Production deployment remains manual and explicitly gated.
 
 ### Stage 15D accepted rehearsal evidence
@@ -446,14 +451,14 @@ Rules:
 
 ## 16. Current next step
 
-The next controlled stage is Stage 16 — controlled deployment.
+Stage 16 controlled deployment is active; repository pre-deployment gates Stage 16A and Stage 16B are accepted.
 
-It must begin with a deployment plan and should implement only the host/runtime work actually required for public launch:
+It must implement only the host/runtime work actually required for public launch:
 
 - production secret generation/provisioning outside Git;
 - VPS directory and ownership model;
 - deployment of the accepted production Compose baseline;
-- host Nginx reverse proxy to `127.0.0.1:8082`;
+- host Nginx reverse proxy to `127.0.0.1:8083`;
 - required forwarded headers, especially protocol handling for Secure-cookie/proxy correctness;
 - TLS/Certbot and HSTS decision;
 - firewall exposure;
