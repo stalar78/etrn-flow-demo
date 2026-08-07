@@ -3,19 +3,20 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–15B are accepted and merged into `main`.
+- Stages 03–15D are accepted.
 - Stage 12B accepted merge commit: `a1e829ebbd695abc19078362d33a04ffd2b68c15`.
 - Stage 13A accepted merge commit: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`.
 - Stage 14B accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
 - Stage 15B accepted merge commit: `b4868f17563b256b4ca1973f11390f02ac46a942`.
-- Latest accepted product-code merge: Stage 15B.
-- Latest accepted GitHub CI for Stage 15B: run #54, successful, including `Checks` and `Production stack`.
+- Stage 15C accepted product-code merge commit: `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`.
+- Latest accepted Stage 15C PR CI: run #59, successful, including `Checks`, `Security scan` and `Production stack`.
+- Stage 15D was evidence-only and made no application-code, schema, Docker/Compose or dependency changes.
 - Public deployment has not been performed.
 - Development continues locally.
 
 ## Current stage
 
-`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Public-release security/privacy hardening next`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16 controlled deployment next`
 
 ## Product boundary
 
@@ -42,7 +43,7 @@ Only synthetic data may be used. Do not invent customers, companies, drivers, ve
 - PostgreSQL with Drizzle ORM.
 - Validation with Zod.
 - Modular monolith in one repository.
-- CI covers install, lint, typecheck, tests, migrations, PostgreSQL integration tests, build, Chromium E2E and production-stack smoke.
+- CI covers install, production dependency audit, lint, typecheck, tests, migrations, PostgreSQL integration tests, build, Chromium E2E, full-history secret scan and production-stack smoke.
 
 ### Guest sessions and abuse controls
 
@@ -77,6 +78,46 @@ Accepted lifecycle policy:
 - no HTTP endpoint, startup cleanup, request-driven cleanup or scheduler was added.
 
 The `guest_sessions.expires_at` cleanup path is indexed by `guest_sessions_expires_at_idx`.
+
+### Public-release repository hardening — Stage 15C
+
+Accepted controls:
+
+- `drizzle-orm` upgraded to `^0.45.2`;
+- CI production dependency gate: `pnpm audit --prod --audit-level high`;
+- full-history Gitleaks scan pinned to immutable action SHA;
+- Gitleaks job has minimal `contents: read` and `pull-requests: read` permissions;
+- reusable `infra/nginx/security-headers.conf`;
+- strict CSP without `unsafe-inline`, `unsafe-eval`, wildcards, `data:` or `blob:`;
+- Nginx child locations that define `Cache-Control` explicitly include the shared security-header snippet;
+- production response-header smoke covers `/`, `/index.html`, a built asset, `/health` and `/api/session`;
+- exact CSP is asserted in CI.
+
+### Local release and backup/restore rehearsal — Stage 15D
+
+Stage 15D used the accepted production Compose and a temporary synthetic environment. No repository code/config changes were required.
+
+Accepted evidence:
+
+- production Compose config validated with a complete synthetic production-like env;
+- production images built successfully;
+- clean PostgreSQL initialization and migrations passed;
+- `postgres`, `api` and `web` reached healthy state;
+- `/health` and same-origin API calls passed through the web/Nginx boundary with production security headers;
+- Secure/HttpOnly/SameSite guest-session cookie was issued and persisted in the rehearsal client;
+- bootstrap created deterministic `DEMO-001`, `DEMO-002`, `DEMO-003` data;
+- logical PostgreSQL backup was created with `pg_dump -Fc` and copied outside the container;
+- backup restored successfully with `pg_restore` into a separate synthetic DB;
+- restored snapshot reproduced the pre-reset shipment UUIDs/states, 1 guest session, 3 shipments, 14 shipment events, 1 usage-limit row and 3 Drizzle migration records;
+- restart of `api` and `web` kept PostgreSQL state intact;
+- temporary rehearsal stack, backup file, cookie jar, env file and volume were removed after acceptance.
+
+Operational lessons:
+
+- `POSTGRES_PASSWORD` and the password embedded in `DATABASE_URL` must be consistent;
+- changing `POSTGRES_PASSWORD` after an existing PostgreSQL data directory was initialized does not rewrite the stored DB password;
+- a clean target DB/volume is required for a clean initialization rehearsal;
+- Compose `-p` isolates the named volume generated from the volume key, but explicit `container_name` and explicit network name still prevent complete parallel isolation.
 
 ### Shipment bootstrap, reads and workflow
 
@@ -115,13 +156,7 @@ The `guest_sessions.expires_at` cleanup path is indexed by `guest_sessions_expir
 - Reset and transitions mutually exclude each other in UI controls and immediate handler guards.
 - Controlled failures restore a usable phase and preserve the last complete valid snapshot when appropriate.
 
-### Browser-level validation — Stage 12B / Stage 14B
-
-- One mandatory Chromium E2E covers entry, bootstrap, `DEMO-001`, first transition, second transition, timeline update, reset and deterministic restoration.
-- First-visit assertions cover product heading, instruction, disclaimer and CTA.
-- Existing component/integration coverage remains in place.
-
-### Production container baseline — Stage 13A
+### Production container baseline
 
 Accepted topology:
 
@@ -143,11 +178,11 @@ Implemented and accepted:
 - non-root API runtime;
 - one-shot migration service;
 - production Compose with only `127.0.0.1:8082:8080` published;
-- isolated production network/volume names;
+- isolated production volume naming within the intended deployment;
 - same-origin Nginx proxying;
 - API graceful shutdown;
 - container security/resource hardening appropriate to each runtime;
-- production-stack CI validation, image build, migrations, health, same-origin smoke, exact port assertion and cleanup.
+- production-stack CI validation, image build, migrations, health, same-origin smoke, security-header smoke, exact port assertion and cleanup.
 
 No VPS deployment has been performed.
 
@@ -225,25 +260,33 @@ Accepted coverage includes:
 - frontend initialization, action execution, reset, stale-request guards and recovery;
 - one Chromium E2E happy path with reset;
 - product intro, synthetic boundary, CTA and first-visit E2E assertions;
-- production Compose and same-origin stack smoke.
+- production Compose and same-origin stack smoke;
+- production dependency audit and full-history Gitleaks scan;
+- exact CSP/security-header response assertions;
+- local release startup, backup/restore and runtime restart rehearsal.
 
-Latest accepted Stage 15B CI: run #54, successful.
+Latest accepted Stage 15C PR CI: run #59, successful.
 
 ## Next controlled stage
 
-The next controlled stage is public-release security/privacy hardening before release rehearsal.
+The next controlled stage is Stage 16 — controlled deployment.
 
-The stage should determine and implement only the local/repository changes genuinely required before public launch, including:
+It must separately plan and gate:
 
-- dependency and secret scanning boundary;
-- production header/CSP decision;
-- privacy/cookie boundary for the strictly necessary guest-session cookie;
-- pre-launch security checklist;
-- clear separation between repository-level hardening and later host/deployment configuration.
+- production secret provisioning outside Git;
+- VPS placement and directory ownership;
+- host Nginx reverse proxy to `127.0.0.1:8082`;
+- `X-Forwarded-Proto` and other required proxy headers;
+- TLS/Certbot and HSTS decision at the host boundary;
+- firewall exposure;
+- external PostgreSQL backup storage, schedule and retention;
+- production restore procedure;
+- external health/smoke validation;
+- rollback boundary for application/container versions without assuming destructive schema rollback.
 
-Analytics implementation remains deferred. Legal/privacy statements must not be invented or presented as professional legal advice.
+Rate limiting in the accepted application is guest-session based, not client-IP based. Do not invent an IP-rate-limit requirement unless Stage 16 explicitly introduces one.
 
-VPS, host Nginx, DNS, TLS, firewall and public deployment remain deferred to a dedicated deployment stage.
+Analytics, authentication/RBAC, real operator integration and product expansion remain deferred.
 
 ## Agent workflow rules
 
@@ -261,14 +304,13 @@ VPS, host Nginx, DNS, TLS, firewall and public deployment remain deferred to a d
 
 - accidental positioning as an accredited operator;
 - TMS scope expansion;
-- public abuse-control tuning behind a reverse proxy;
-- incorrect client-IP assumptions during eventual deployment hardening;
-- backup/restore procedure not yet rehearsed;
-- privacy/cookie wording not yet finalized;
-- CSP/header boundary not yet finalized;
+- incorrect host reverse-proxy configuration during deployment;
+- external backup storage/retention not yet configured;
+- production secrets not yet provisioned;
+- TLS/HSTS/firewall not yet configured for ETRN Flow;
 - stale frontend recovery regressions;
 - premature integration or legal-significance claims;
-- deployment beginning before release readiness is accepted.
+- deployment actions occurring outside the controlled Stage 16 plan.
 
 ## Documents to read first in a new chat
 
