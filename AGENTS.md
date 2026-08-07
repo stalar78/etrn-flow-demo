@@ -6,7 +6,9 @@
 
 - Project: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Idea / Product Definition
+- Current stage: Stages 03–15B accepted and merged; next controlled stage is public-release security/privacy hardening
+- Latest accepted `main`: `b4868f17563b256b4ca1973f11390f02ac46a942`
+- Public deployment: not performed
 - Main docs: `docs/`
 - Blueprint: `PROJECT_BLUEPRINT.md`
 - Project memory: `.business/`, `.idea/`, `.architecture/`, `.architect/`, `.plans/`, `.security/`
@@ -54,6 +56,27 @@
 
 Секреты не должны попадать в Git, docs, prompts, screenshots и логи.
 
+## Codex workflow
+
+- Все промпты для Codex пишутся на русском языке.
+- Названия файлов, путей, компонентов, переменных, команд и других технических сущностей сохраняются в точном виде из кода.
+- Codex изменяет только одобренный код и техническую конфигурацию.
+- Codex не изменяет постоянную документацию или Project Brain без явного разрешения.
+- Codex не выполняет commit, push, PR, merge или deployment без отдельной команды.
+- GPT отвечает за архитектурное направление, review, scope и синхронизацию документации.
+
+## Accepted lifecycle hardening
+
+Stage 15B добавил ручной bounded cleanup истёкших guest sessions:
+
+- eligibility: `expires_at < now() - interval '24 hours'`;
+- batch size: 500;
+- maximum batches per run: 100;
+- deterministic oldest-first delete;
+- PostgreSQL `FOR UPDATE SKIP LOCKED`;
+- удаляется только `guest_sessions`, дочерние synthetic rows удаляются существующими `ON DELETE CASCADE`;
+- HTTP endpoint, request-driven cleanup и scheduler не добавлены.
+
 ## Commands
 
 После появления Makefile использовать его как стабильный интерфейс:
@@ -65,6 +88,12 @@ make test
 make lint
 make typecheck
 make build
+```
+
+Дополнительная принятая maintenance-команда:
+
+```bash
+corepack pnpm db:cleanup-expired-sessions
 ```
 
 Не придумывать отсутствующие команды. Сначала проверить `Makefile`, `package.json` и конфигурацию проекта.
