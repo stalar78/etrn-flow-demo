@@ -4,13 +4,13 @@
 
 ## Статус
 
-Текущая стадия: `Stages 03–15D accepted → Stage 16 controlled deployment next`.
+Текущая стадия: `Stages 03–15D accepted → Stage 16A–16B accepted → Stage 16 controlled deployment in progress`.
 
-Последний принятый product-code merge в `main`:
+Последний принятый repository merge в `main`:
 
-`4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`
+`c4e3ffbed9cf0f05c7c849755823e13a2ad605d6`
 
-Stage 15D был evidence-only rehearsal без изменений application code, schema, Docker/Compose или dependencies.
+Stage 15D был evidence-only rehearsal без изменений application code, schema, Docker/Compose или dependencies. Stage 16A зарезервировал production loopback `127.0.0.1:8083` для ETRN Flow, а Stage 16B закрыл известные vulnerabilities в dev tooling перед deployment.
 
 Публичный deployment ещё не выполнялся.
 
@@ -117,7 +117,7 @@ Stage 15D был выполнен локально как evidence-only stage б
 
 ```text
 host Nginx + Certbot
-→ 127.0.0.1:8082
+→ 127.0.0.1:8083
 → web container / Nginx
 → api container
 → postgres container
@@ -160,9 +160,9 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-Следующий контролируемый этап — Stage 16: controlled deployment.
+Stage 16 controlled deployment активен; repository pre-deployment gates Stage 16A и Stage 16B приняты.
 
-В отдельном deployment gate должны быть приняты и проверены:
+В deployment gate должны быть приняты и проверены:
 
 - production secrets вне Git;
 - VPS placement;
