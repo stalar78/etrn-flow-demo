@@ -4,12 +4,12 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stages 03–14B accepted and merged; next local stage not yet named
+- Current stage: Stages 03–15B accepted and merged; public-release security/privacy hardening is next
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
-- Latest accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`
-- Latest accepted CI: run #50, successful
+- Latest accepted merge commit: `b4868f17563b256b4ca1973f11390f02ac46a942`
+- Latest accepted Stage 15B CI: run #54, successful
 - Public deployment status: not deployed
 
 ## 2. Purpose
@@ -68,7 +68,8 @@ ETRN Flow — публичная интерактивная демонстрац
 - browser-level happy path;
 - production container baseline;
 - компактная публичная продуктовая подача;
-- CTA StalarVision.
+- CTA StalarVision;
+- bounded manual cleanup истёкших guest sessions и каскадное удаление связанных synthetic rows.
 
 Не входят:
 
@@ -100,13 +101,16 @@ Merged into `main`:
 - Stage 12A — concurrent transition integration semantics;
 - Stage 12B — browser happy path, UX/accessibility and reset audit;
 - Stage 13A — production container baseline and CI stack smoke;
-- Stage 14B — guided product presentation and StalarVision CTA.
+- Stage 14B — guided product presentation and StalarVision CTA;
+- Stage 15A — public-release readiness audit;
+- Stage 15B — expired guest-session cleanup and lifecycle hardening.
 
 Accepted merge commits:
 
 - Stage 12B: `a1e829ebbd695abc19078362d33a04ffd2b68c15`;
 - Stage 13A: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`;
-- Stage 14B: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
+- Stage 14B: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`;
+- Stage 15B: `b4868f17563b256b4ca1973f11390f02ac46a942`.
 
 ## 7. Current backend capabilities
 
@@ -133,7 +137,29 @@ Accepted merge commits:
 - transactional reset through `DemoResetService`;
 - same-session reset serialization through PostgreSQL advisory transaction locking;
 - PostgreSQL-backed integration coverage in CI;
-- graceful SIGTERM/SIGINT shutdown in the production API runtime.
+- graceful SIGTERM/SIGINT shutdown in the production API runtime;
+- manual expired-session cleanup command with database-authoritative cutoff and bounded batches.
+
+### Accepted expired-session cleanup policy
+
+```text
+manual command
+→ PostgreSQL now() - 24h grace cutoff
+→ expires_at ASC, id ASC
+→ batch size 500
+→ FOR UPDATE SKIP LOCKED
+→ delete guest_sessions only
+→ ON DELETE CASCADE children
+→ aggregate result
+```
+
+Additional limits:
+
+- maximum 100 batches per run;
+- maximum 50,000 sessions per run;
+- `guest_sessions_expires_at_idx` supports eligibility lookup;
+- cleanup is safe to rerun;
+- no scheduler, HTTP cleanup endpoint, request-driven cleanup or startup cleanup exists.
 
 ## 8. Current frontend capabilities
 
@@ -201,7 +227,7 @@ Accepted GitHub CI jobs:
 - exact host-port exposure assertion;
 - cleanup.
 
-Latest accepted CI: run #50, successful.
+Latest accepted Stage 15B CI: run #54, successful.
 
 ## 10. Production container baseline
 
@@ -303,6 +329,16 @@ server-resolved guest session
 → commit or rollback
 ```
 
+Expired-session cleanup must follow:
+
+```text
+manual maintenance command
+→ database-authoritative eligibility
+→ bounded batch delete of guest_sessions
+→ existing ON DELETE CASCADE
+→ aggregate output only
+```
+
 When detail is displayed:
 
 ```text
@@ -321,32 +357,34 @@ selectedShipmentId === detail.shipment.id
 - Client-controlled counters, limits, session ids and target states are forbidden.
 - Production cookies use `httpOnly`, `Secure` and appropriate `SameSite` settings.
 - Reset accepts no client-selected session, state, shipment or seed data.
+- Cleanup exposes no session IDs or synthetic payloads in success output.
 - Controlled errors do not expose infrastructure details.
 - Production deployment remains manual and explicitly gated.
 
-Pending security/reliability work before a public release may include:
+Pending security/reliability work before a public release:
 
-- expired-session cleanup policy;
-- reverse-proxy-aware abuse-control calibration;
-- public-release security audit;
-- final CSP/header decision at the host/proxy boundary;
-- production secret provisioning and backup policy.
+- public-release dependency and secret scanning decision;
+- final CSP/header decision at the appropriate proxy boundary;
+- privacy/cookie wording and owner/professional review where needed;
+- production secret provisioning;
+- backup/restore procedure and rehearsal;
+- reverse-proxy-aware abuse-control calibration during deployment/release rehearsal.
 
 ## 14. AI-agent workflow
 
 - GPT: product and technical architect, reviewer, keeper of scope and documentation.
 - Codex: implementation of approved code and technical configuration only.
-- User: project owner, runs Codex locally, reviews outcomes with GPT, performs pulls and approved production actions.
+- User: project owner, runs Codex locally and performs approved production actions.
 
 Rules:
 
-- Codex prompts are written in English, except exact Russian UI literals that must remain in Russian.
-- File names, paths, components, variables and technical entities preserve their exact code names.
+- Все промпты для Codex пишутся на русском языке.
+- Названия файлов, путей, компонентов, переменных, команд и других технических сущностей сохраняются в точном виде из кодовой базы.
 - Complex work uses Plan → approval → Build.
 - GPT maintains documentation directly through GitHub.
 - Codex does not modify project documentation unless explicitly authorized.
 - Codex does not commit, push or deploy unless separately authorized.
-- Merge requires explicit owner authorization.
+- The owner has authorized GPT to move reviewed green-CI PRs to Ready and squash-merge them without asking again; production deployment remains separately gated.
 
 ## 15. Main risks
 
@@ -358,34 +396,31 @@ Rules:
 | Invalid state mutation | Corrupted demo history | Named actions, guarded persistence and append-only events |
 | Frontend stale-response mismatch | Misleading UI | Request-version guards and selection invariant |
 | Reset/transition overlap | Mixed state | UI mutual exclusion and transactional backend operations |
-| Product intro too large on small screens | Demo buried below the fold | Compact responsive hierarchy and targeted browser audit |
-| Premature deployment | Operational risk and distraction | Dedicated deployment stage only after explicit owner approval |
-| No demand after advertising | Lost time | Launch minimally, measure and refine |
+| Unbounded expired demo data | Database growth | Accepted Stage 15B bounded cleanup command |
+| Backup/restore not rehearsed | Operational recovery risk | Required before public deployment |
+| Privacy/cookie wording unresolved | Compliance/reputation risk | Resolve boundary before release |
+| Premature deployment | Operational risk and distraction | Dedicated deployment stage after release-readiness acceptance |
 
 ## 16. Current next step
 
-The next stage is intentionally not named yet.
+The next controlled stage is public-release security/privacy hardening before release rehearsal.
 
-The project continues locally. Before implementation, perform a controlled audit of the accepted Stage 14B product presentation and Stage 13A production baseline.
+It should first inspect the actual repository and accepted security docs, then implement only the smallest justified local changes. Candidate areas:
 
-Possible next local directions:
+- dependency and secret scanning;
+- production security headers and CSP boundary;
+- privacy/cookie boundary;
+- public-release security checklist;
+- separation of repository-level controls from later host-level deployment hardening.
 
-- final product-content and workflow clarity audit;
-- targeted UX polish based on real local browser review;
-- privacy and analytics event design without vendor implementation;
-- expired-session cleanup design;
-- public-release readiness checklist;
-- StalarVision portfolio-page integration planning.
+Do not automatically add analytics, authentication, RBAC, new product functionality or broad redesign.
 
-The next stage must not automatically include:
+The next stage must not include without a dedicated deployment decision:
 
 - VPS access;
-- host Nginx;
+- host Nginx changes;
 - DNS;
 - TLS/Certbot;
 - firewall changes;
 - public deployment;
-- real integrations;
-- authentication/RBAC;
-- analytics implementation;
-- broad redesign.
+- real integrations.
