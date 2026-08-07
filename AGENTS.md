@@ -6,8 +6,9 @@
 
 - Project: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stages 03–15B accepted and merged; next controlled stage is public-release security/privacy hardening
-- Latest accepted `main`: `b4868f17563b256b4ca1973f11390f02ac46a942`
+- Current stage: Stages 03–15D accepted; next controlled stage is Stage 16 — controlled deployment
+- Latest accepted product-code merge: Stage 15C, `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`
+- Stage 15D was evidence-only: no application-code, schema, Docker/Compose or dependency changes
 - Public deployment: not performed
 - Main docs: `docs/`
 - Blueprint: `PROJECT_BLUEPRINT.md`
@@ -65,7 +66,7 @@
 - Codex не выполняет commit, push, PR, merge или deployment без отдельной команды.
 - GPT отвечает за архитектурное направление, review, scope и синхронизацию документации.
 
-## Accepted lifecycle hardening
+## Accepted lifecycle and release hardening
 
 Stage 15B добавил ручной bounded cleanup истёкших guest sessions:
 
@@ -76,6 +77,24 @@ Stage 15B добавил ручной bounded cleanup истёкших guest ses
 - PostgreSQL `FOR UPDATE SKIP LOCKED`;
 - удаляется только `guest_sessions`, дочерние synthetic rows удаляются существующими `ON DELETE CASCADE`;
 - HTTP endpoint, request-driven cleanup и scheduler не добавлены.
+
+Stage 15C добавил repository-level public-release hardening:
+
+- `drizzle-orm` upgraded to patched `^0.45.2`;
+- CI production dependency audit with `pnpm audit --prod --audit-level high`;
+- full-history Gitleaks security scan pinned to immutable action SHA;
+- reusable Nginx security headers snippet and strict CSP;
+- production response-header smoke for root, index, built asset, `/health` and `/api/session`.
+
+Stage 15D completed a local evidence-only release rehearsal:
+
+- production Compose config/build/migrations/startup passed;
+- `postgres`, `api`, `web` became healthy;
+- same-origin health/API smoke passed with production security headers;
+- logical PostgreSQL backup with `pg_dump -Fc` was created and copied outside the container;
+- restore into a separate synthetic DB reproduced guest session, 3 shipments, 14 events, usage state and Drizzle migration metadata;
+- restart of `api` and `web` preserved PostgreSQL state;
+- production deployment remained out of scope.
 
 ## Commands
 
@@ -97,6 +116,22 @@ corepack pnpm db:cleanup-expired-sessions
 ```
 
 Не придумывать отсутствующие команды. Сначала проверить `Makefile`, `package.json` и конфигурацию проекта.
+
+## Next controlled stage
+
+Stage 16 — controlled deployment.
+
+Deployment stage must separately gate and verify:
+
+- production secret provisioning;
+- VPS placement;
+- host Nginx reverse proxy;
+- TLS/Certbot and HSTS decision;
+- firewall;
+- external backup storage, retention and restore procedure;
+- external health/smoke and rollback boundary.
+
+Do not begin production deployment implicitly from a repository-only task.
 
 ## Final report
 
