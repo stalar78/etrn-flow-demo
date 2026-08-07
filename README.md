@@ -4,15 +4,15 @@
 
 ## Статус
 
-Текущая стадия: `Stages 03–15B accepted → Public-release security/privacy hardening next`.
+Текущая стадия: `Stages 03–15D accepted → Stage 16 controlled deployment next`.
 
-Последний принятый commit в `main`:
+Последний принятый product-code merge в `main`:
 
-`b4868f17563b256b4ca1973f11390f02ac46a942`
+`4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`
 
-Последний принятый GitHub CI для Stage 15B: run #54, успешный.
+Stage 15D был evidence-only rehearsal без изменений application code, schema, Docker/Compose или dependencies.
 
-Публичный deployment ещё не выполнялся. Разработка продолжается локально.
+Публичный deployment ещё не выполнялся.
 
 ## Что уже реализовано
 
@@ -33,7 +33,10 @@
 - same-origin Nginx proxy inside the web container;
 - CI production-stack build, migration, health, smoke and port-exposure checks;
 - compact product intro, independent-developer positioning and CTA to StalarVision;
-- bounded manual cleanup of expired guest sessions and cascaded synthetic data.
+- bounded manual cleanup of expired guest sessions and cascaded synthetic data;
+- repository-level production dependency audit and full-history Gitleaks scan;
+- strict Nginx CSP/security headers with production response assertions;
+- locally rehearsed production-like startup, logical PostgreSQL backup/restore and runtime restart persistence.
 
 ## Lifecycle cleanup
 
@@ -53,6 +56,37 @@ corepack pnpm db:cleanup-expired-sessions
 - параллельные cleanup безопасно координируются через `FOR UPDATE SKIP LOCKED`;
 - `shipments`, `shipment_events` и `guest_session_usage_limits` удаляются существующими `ON DELETE CASCADE`;
 - scheduler, HTTP cleanup endpoint и request-driven cleanup не добавлены.
+
+## Public-release hardening
+
+Stage 15C принят и включает:
+
+- `drizzle-orm` `^0.45.2`;
+- CI gate `pnpm audit --prod --audit-level high`;
+- full-history Gitleaks scan pinned to immutable action SHA;
+- reusable `infra/nginx/security-headers.conf`;
+- strict CSP without `unsafe-inline`, `unsafe-eval`, wildcards, `data:` or `blob:`;
+- security headers retained in locations with their own `add_header` directives;
+- production response-header smoke for `/`, `/index.html`, built asset, `/health` and `/api/session`.
+
+Latest accepted Stage 15C PR CI: run #59, successful.
+
+## Release rehearsal
+
+Stage 15D был выполнен локально как evidence-only stage без изменений репозитория.
+
+Подтверждено:
+
+- production Compose config валиден;
+- production images собираются;
+- migrations проходят на чистой synthetic PostgreSQL DB;
+- `postgres`, `api`, `web` становятся healthy;
+- same-origin `/health`, session/bootstrap/list API работают через production web/Nginx boundary;
+- Secure guest-session cookie и Stage 15C response headers присутствуют;
+- `pg_dump -Fc` создаёт logical backup;
+- `pg_restore` в отдельную synthetic DB восстановил guest session, 3 shipments, 14 shipment events, usage-limit state и Drizzle migration metadata;
+- restart `api` и `web` сохранил PostgreSQL state;
+- rehearsal artifacts и temporary volume после проверки удалены.
 
 ## Основной демо-сценарий
 
@@ -89,7 +123,7 @@ host Nginx + Certbot
 → postgres container
 ```
 
-Это только локально и в CI проверенный production container baseline. VPS, DNS, TLS, host Nginx и firewall ещё не настраивались для ETRN Flow.
+Репозиторий и container baseline проверены локально и в CI. VPS, DNS, TLS, host Nginx и firewall для ETRN Flow ещё не настраивались.
 
 ## Локальные команды
 
@@ -126,14 +160,18 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-Следующий контролируемый этап — public-release security/privacy hardening перед release rehearsal.
+Следующий контролируемый этап — Stage 16: controlled deployment.
 
-Фокус следующего этапа:
+В отдельном deployment gate должны быть приняты и проверены:
 
-- dependency и secret scanning;
-- проверка production headers/CSP boundary;
-- privacy/cookie boundary без выдуманных юридических утверждений;
-- public-release security checklist;
-- определение того, какие вопросы относятся к host/deployment stage и не должны внедряться локально преждевременно.
+- production secrets вне Git;
+- VPS placement;
+- host Nginx reverse proxy;
+- TLS/Certbot и HSTS decision;
+- firewall;
+- external backup storage и retention;
+- production restore procedure;
+- external health/smoke;
+- rollback boundary.
 
-Deployment не начинается без отдельного этапа и явного решения владельца.
+Deployment не начинается неявно из repository-only задачи и требует отдельного контролируемого этапа.
