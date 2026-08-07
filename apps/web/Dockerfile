@@ -18,5 +18,6 @@ RUN pnpm --filter @etrn-flow/shared build \
 
 FROM nginx:1.27-alpine AS runtime
 COPY infra/nginx/default.conf /etc/nginx/nginx.conf
+COPY infra/nginx/security-headers.conf /etc/nginx/security-headers.conf
 COPY --from=build /workspace/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080
