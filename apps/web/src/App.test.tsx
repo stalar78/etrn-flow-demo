@@ -110,6 +110,8 @@ describe("App", () => {
     expect(mockedApi.listShipments).toHaveBeenCalled();
     expect(mockedApi.getShipmentDetail).toHaveBeenCalledWith("shipment-1");
     expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByText("Основной путь перевозки")).toBeInTheDocument();
+    expect(screen.getByText("Отклонение и восстановление")).toBeInTheDocument();
 
     const guidedDemo = getGuidedDemoPanel();
     expect(guidedDemo.getByText(/прибытие автомобиля/iu)).toBeInTheDocument();
@@ -342,6 +344,7 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("button", { name: /DEMO-001/i });
+    expect(screen.getByText("Завершённый пример")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /DEMO-003/i }));
 
     const guidedDemo = getGuidedDemoPanel("DEMO-003");
