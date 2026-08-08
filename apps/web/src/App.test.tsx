@@ -79,15 +79,29 @@ describe("App", () => {
       level: 1,
       name: "Демо системы для управления этапами перевозки"
     })).toBeInTheDocument();
-    expect(screen.getByText(/Начните с DEMO-001: подтвердите прибытие автомобиля/)).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByText(/Начните с DEMO-001 и последовательно пройдите перевозку/)).toBeInTheDocument();
     expect(screen.getByText(/Демо работает только с синтетическими данными/)).toBeInTheDocument();
     expect(screen.getByText(/одним независимым разработчиком StalarVision/)).toBeInTheDocument();
+    expect(screen.getByText("Последовательный процесс от погрузки до завершения")).toBeInTheDocument();
+    expect(screen.getByText("Роли и управляемое отклонение с возвратом в процесс")).toBeInTheDocument();
+    expect(screen.getByText("История событий после каждого изменения")).toBeInTheDocument();
 
-    const cta = screen.getByRole("link", { name: "Обсудить похожую систему" });
+    const commercialHeading = screen.getByRole("heading", {
+      name: "Если похожий процесс есть в вашей компании"
+    });
+    expect(commercialHeading.closest("section")).toHaveAttribute("aria-labelledby", "commercial-next-step-title");
+    expect(screen.getByText("Рабочий процесс")).toBeInTheDocument();
+    expect(screen.getByText("Данные и существующие системы")).toBeInTheDocument();
+    expect(screen.getByText("Интерфейс для пользователей")).toBeInTheDocument();
+
+    const cta = screen.getByRole("link", { name: "Обсудить свою задачу" });
     expect(cta).toHaveAttribute("href", "https://stalarvision.ru");
     expect(cta).toHaveAttribute("target", "_blank");
     expect(cta).toHaveAttribute("rel", "noreferrer");
+    expect(screen.queryByRole("link", { name: "Обсудить похожую систему" })).not.toBeInTheDocument();
     expect(screen.getByText("О возможностях демо")).toBeInTheDocument();
+    expect(screen.getAllByText(/управляемое отклонение с возвратом в процесс/).length).toBeGreaterThan(1);
     expect(screen.getByText("Подключаемся к API и готовим демо-сеанс...")).toBeInTheDocument();
 
     await screen.findByRole("button", { name: /DEMO-001/i });
