@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document records the accepted operational baseline for the first public production deployment of ETRN Flow.
+This document records the accepted operational baseline for the public production deployment of ETRN Flow and subsequent controlled release updates.
 
 ETRN Flow remains a synthetic public demo. Do not store real customer data, real personal data, legally significant transport documents, credentials, private keys or production secrets in the repository.
 
@@ -120,6 +120,67 @@ The first production acceptance also verified:
 - `nginx -t` success;
 - stable healthy containers after startup.
 
+## Controlled Stage 16C + Stage 17A–17D production release — 2026-08-08
+
+The accumulated Stage 16C + Stage 17A–17D repository baseline was promoted through a separate controlled release checkpoint after repository acceptance.
+
+Accepted release evidence:
+
+- pre-release VPS checkout was clean before update;
+- production `.env.production` remained mode `600`;
+- `GUEST_SESSION_RATE_MAX_REQUESTS` was updated from `6` to the accepted Stage 17B default `8`;
+- production Compose config validated successfully after the env update;
+- pre-release backup `/home/stanislav/backups/etrn-flow/etrn-flow-20260808T131846Z.dump` was created with mode `600` and observed size `28528` bytes;
+- the backup archive was verified as readable with `pg_restore -l` using the existing `postgres:17-alpine` image; no host PostgreSQL package installation was required;
+- production checkout advanced to `0938c64f4baf26ff3618678a0f278aaac3096ca5`, which includes the accepted Stage 17D product code and Stage 17C/17D documentation sync;
+- production API and web images built successfully;
+- migrations completed through the accepted one-shot migration service;
+- API and web were replaced with targeted `--no-deps --force-recreate` commands;
+- PostgreSQL was not restarted during the runtime replacement;
+- API and web returned to `healthy` state;
+- web remained published only at `127.0.0.1:8083:8080`;
+- runtime API env confirmed `GUEST_SESSION_RATE_MAX_REQUESTS=8`;
+- loopback and public `/health` checks returned the accepted health payload;
+- production bundle contained the Stage 17D commercial heading and CTA;
+- isolated external smoke created a new guest session and bootstrapped three synthetic shipments;
+- `DEMO-002` was verified through `in_transit → attention_required → in_transit → awaiting_unloading` using `reportAttention`, `resolveAttention` and `arriveForUnloading`;
+- reset returned `DEMO-002` to deterministic `in_transit`;
+- final external `/health` remained successful;
+- Nginx, Certbot and neighboring project resources were not modified.
+
+This release is accepted. Stage 16C + Stage 17A–17D are therefore considered deployed, not merely repository-accepted.
+
+## Favicon production update — 2026-08-08
+
+A subsequent isolated frontend update added the StalarVision-based browser favicon.
+
+Repository evidence:
+
+- PR #32: `feat: add favicon`;
+- accepted merge commit: `90a8f81867f6bf1c0d6190ee91176e7b81793d25`;
+- CI #91 passed `Checks`, `Security scan` and `Production stack`;
+- application change is limited to `apps/web/index.html` plus `apps/web/public/favicon.png`.
+
+Production evidence:
+
+- VPS checkout advanced to `90a8f81867f6bf1c0d6190ee91176e7b81793d25`;
+- only the `web` image was rebuilt;
+- only `etrn-flow-prod-web` was force-recreated with `--no-deps`;
+- final web container health was `healthy`;
+- exact binding remained `127.0.0.1:8083→8080`;
+- `https://etrn.stalarvision.ru/favicon.png` returned HTTP 200 with `Content-Type: image/png` and `Content-Length: 89864`;
+- production HTML contained `href="/favicon.png"`;
+- public `/health` remained successful;
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not changed.
+
+Current production checkout baseline after this update:
+
+```text
+90a8f81867f6bf1c0d6190ee91176e7b81793d25
+```
+
+The latest domain/application feature baseline inside that checkout remains Stage 17D merge `2bc824144674d885a6619f8ec7e596b74e81ffd3`.
+
 ## Backups on the VPS
 
 Backup directory:
@@ -216,7 +277,7 @@ The first post-launch repository security maintenance was accepted as Stage 16C:
 - `vite` and `@vitejs/plugin-react` are `devDependencies`;
 - Stage 16C did not change application logic, API, schema, Docker/Compose, Nginx, production ports or VPS configuration.
 
-Because Stage 16C changes build/dependency metadata rather than production behavior, any production update remains a separate explicit release decision.
+Stage 16C is now deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D.
 
 ## Isolation rules
 
@@ -238,7 +299,7 @@ ETRN Flow     127.0.0.1:8083
 
 ## Release/update boundary
 
-Production is now a live public demo. Future development remains incremental:
+Production is a live public demo. Future development remains incremental:
 
 ```text
 implementation stage
@@ -250,6 +311,6 @@ implementation stage
 → production acceptance
 ```
 
-Do not deploy every commit automatically. Deploy only an accepted, reviewed stage or explicit hotfix.
+Do not deploy every commit automatically. Deploy only an accepted, reviewed stage or explicit hotfix/UI maintenance update.
 
 Schema rollback must never be assumed to be safely destructive. Application rollback and database migration/restore decisions must be planned separately when a future stage changes persistence semantics.
