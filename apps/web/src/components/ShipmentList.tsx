@@ -9,6 +9,12 @@ type ShipmentListProps = {
   shipments: ShipmentSummary[];
 };
 
+const preparedScenarioDescriptors: Partial<Record<string, string>> = {
+  "DEMO-001": "Основной путь перевозки",
+  "DEMO-002": "Отклонение и восстановление",
+  "DEMO-003": "Завершённый пример"
+};
+
 export function ShipmentList({
   isInteractionDisabled,
   isLoading,
@@ -34,6 +40,7 @@ export function ShipmentList({
       <div className="shipment-list" role="list">
         {shipments.map((shipment) => {
           const isSelected = shipment.id === selectedShipmentId;
+          const descriptor = preparedScenarioDescriptors[shipment.reference];
 
           return (
             <button
@@ -45,6 +52,7 @@ export function ShipmentList({
               type="button"
             >
               <span className="shipment-reference">{shipment.reference}</span>
+              {descriptor ? <span className="shipment-descriptor">{descriptor}</span> : null}
               <span className={`state-badge state-${shipment.state}`}>
                 {shipmentStateLabels[shipment.state]}
               </span>
