@@ -20,6 +20,7 @@ import { DemoResetControl } from "./components/DemoResetControl";
 import { EventTimeline } from "./components/EventTimeline";
 import { GuidedDemoPath } from "./components/GuidedDemoPath";
 import { Notice } from "./components/Notice";
+import { OperationalSnapshot } from "./components/OperationalSnapshot";
 import { ProductIntro } from "./components/ProductIntro";
 import { ShipmentDetail } from "./components/ShipmentDetail";
 import { ShipmentList } from "./components/ShipmentList";
@@ -334,6 +335,8 @@ export function App() {
             </button>
           </section>
         ) : null}
+
+        {phase !== "fatal_initialization_error" ? <OperationalSnapshot shipments={shipments} /> : null}
 
         {phase !== "fatal_initialization_error" ? (
           <div className="workspace-grid">

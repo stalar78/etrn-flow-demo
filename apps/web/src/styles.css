@@ -355,6 +355,46 @@ h3 {
   width: fit-content;
 }
 
+.operational-snapshot {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.operational-snapshot-heading {
+  padding-bottom: 0;
+}
+
+.operational-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.operational-snapshot-item {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #faf7f0;
+}
+
+.operational-snapshot-item dt {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.operational-snapshot-item dd {
+  margin: 0;
+  color: var(--color-accent-strong);
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
 .detail-column {
   display: grid;
   gap: var(--space-3);
@@ -728,6 +768,7 @@ dd {
   .app-header,
   .product-intro,
   .commercial-next-step-list,
+  .operational-snapshot-grid,
   .workspace-grid {
     grid-template-columns: 1fr;
   }
@@ -750,6 +791,7 @@ dd {
   .detail-grid,
   .capability-list,
   .commercial-next-step-list,
+  .operational-snapshot-grid,
   .progress-steps,
   .guided-demo-steps,
   .timeline-item {
