@@ -4,19 +4,19 @@
 
 ## Статус
 
-Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted`.
+Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted`.
 
 Последний принятый product-code repository merge в `main`:
 
-`30aa5edb39b773f558a9f651e73e25aee72e9211` (Stage 17B)
+`2bc824144674d885a6619f8ec7e596b74e81ffd3` (Stage 17D)
 
-Stage 17A добавил компактный guided layer для основного `DEMO-001` сценария без отдельного client state. Stage 17B завершил server-authoritative happy path до `completed`, добавив разгрузку и финальное подтверждение через существующие role/state guards, transactional update и append-only event. Для совместимости полного публичного сценария default burst limit принят как 8 protected POST requests за 10 секунд. CI #81 полностью успешен.
+Stage 17A добавил компактный guided layer для основного `DEMO-001` сценария без отдельного client state. Stage 17B завершил server-authoritative happy path до `completed`, добавив разгрузку и финальное подтверждение через существующие role/state guards, transactional update и append-only event. Stage 17C добавил управляемый branch/recovery для `DEMO-002`: `in_transit → attention_required → in_transit` через роли `driver` и `manager`, после чего перевозка снова может продолжить обычный lifecycle. Stage 17D добавил компактный commercial next step после workspace и перенёс единственный основной CTA вниз страницы. Последний принятый product-code CI — #87, полностью успешный.
 
 Публичное демо работает по адресу:
 
 `https://etrn.stalarvision.ru`
 
-Важно: Stage 17A и Stage 17B приняты в repository baseline, но сами по себе не означают, что production VPS уже обновлён. Любой production update проходит отдельный release gate.
+Важно: Stage 16C и Stage 17A–17D приняты в repository baseline, но сами по себе не означают, что production VPS уже обновлён до этого baseline. Любой production update проходит отдельный release gate.
 
 ## Что уже реализовано
 
@@ -34,10 +34,11 @@ Stage 17A добавил компактный guided layer для основно
 - frontend stale-request and recovery protection;
 - compact guided `DEMO-001` path derived from authoritative shipment state;
 - full Chromium E2E happy path through `completed` including reset;
+- controlled `DEMO-002` exception/recovery branch through `attention_required`;
 - production API/web images and production Compose baseline;
 - same-origin Nginx proxy inside the web container;
 - CI production-stack build, migration, health, smoke and port-exposure checks;
-- compact product intro, independent-developer positioning and CTA to StalarVision;
+- compact product intro, independent-developer positioning and commercial next step to StalarVision;
 - bounded manual cleanup of expired guest sessions and cascaded synthetic data;
 - repository-level production dependency audit and full-history Gitleaks scan;
 - strict Nginx CSP/security headers with production response assertions;
@@ -47,7 +48,9 @@ Stage 17A добавил компактный guided layer для основно
 - verified production restore into a separate temporary database;
 - first verified off-VPS recovery copy on the owner's workstation;
 - post-launch dependency advisory remediation with clean CI run #74;
-- Stage 17A/17B product-code validation with clean CI run #81.
+- Stage 17A/17B product-code validation with clean CI run #81;
+- Stage 17C product-code validation with clean CI run #85;
+- Stage 17D product-code validation with clean CI run #87.
 
 ## Lifecycle cleanup
 
@@ -112,7 +115,9 @@ Stage 15D был выполнен локально как evidence-only stage б
 7. ролью `consignee` завершить разгрузку: `unloading → awaiting_confirmation`;
 8. ролью `consignee` подтвердить завершение перевозки: `awaiting_confirmation → completed`;
 9. увидеть обновлённые статус, workflow progress и append-only историю событий;
-10. вернуть демо в детерминированное исходное состояние.
+10. выбрать `DEMO-002`, ролью `driver` перевести перевозку `in_transit → attention_required`, а ролью `manager` вернуть её `attention_required → in_transit`;
+11. после recovery продолжить обычный lifecycle через существующее действие прибытия к разгрузке;
+12. вернуть демо в детерминированное исходное состояние.
 
 Клиент отправляет только named action и actor role. `nextState` вычисляется domain layer; прямое client-controlled изменение состояния запрещено.
 
@@ -184,8 +189,8 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-Stage 17A Guided Demo Experience и Stage 17B Complete Transport Lifecycle приняты в repository baseline. Stage 17B подтверждён CI #81 (`Checks`, `Security scan`, `Production stack`), включая PostgreSQL integration tests и Chromium E2E полного `DEMO-001` пути до `completed`.
+Stage 17C Managed Attention Scenario и Stage 17D Commercial Conversion Layer приняты в repository baseline. Stage 17C подтверждён CI #85, Stage 17D — CI #87; в обоих случаях `Checks`, `Security scan` и `Production stack` завершились успешно.
 
-Следующий продуктовый шаг должен оставаться узким и коммерчески осмысленным. Приоритет для Stage 17C будет выбран отдельно между дальнейшей demo-depth ценностью и коммерческим слоем; analytics, authentication/RBAC, реальные operator/GIS integrations и расширение до полноценной TMS остаются вне текущего scope.
+Текущий repository baseline уже включает guided happy path, полный transport lifecycle, controlled exception/recovery и коммерческий следующий шаг. Следующий контролируемый этап — не новый feature increment, а отдельный production release checkpoint для накопленного Stage 16C + Stage 17A–17D baseline с последующим external smoke.
 
-Принятые Stage 17A/17B изменения не должны считаться автоматически опубликованными в production до отдельного release gate и external smoke.
+До успешного release gate и external smoke нельзя считать production VPS обновлённым до Stage 17D. Analytics, authentication/RBAC, реальные operator/GIS integrations и расширение до полноценной TMS остаются вне текущего scope.
