@@ -4,17 +4,19 @@
 
 ## Статус
 
-Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17 planning`.
+Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted`.
 
 Последний принятый product-code repository merge в `main`:
 
-`81a69da562bfe112584f353f1638f2443af3481a` (Stage 16C)
+`30aa5edb39b773f558a9f651e73e25aee72e9211` (Stage 17B)
 
-Stage 15D был evidence-only rehearsal без изменений application code, schema, Docker/Compose или dependencies. Stage 16A зарезервировал production loopback `127.0.0.1:8083` для ETRN Flow, Stage 16B закрыл известные vulnerabilities в dev tooling перед deployment, Stage 16 завершил первый контролируемый публичный запуск, а Stage 16C устранил post-launch dependency advisory (`postcss`/`nanoid`) без изменения product logic или deployment configuration.
+Stage 17A добавил компактный guided layer для основного `DEMO-001` сценария без отдельного client state. Stage 17B завершил server-authoritative happy path до `completed`, добавив разгрузку и финальное подтверждение через существующие role/state guards, transactional update и append-only event. Для совместимости полного публичного сценария default burst limit принят как 8 protected POST requests за 10 секунд. CI #81 полностью успешен.
 
 Публичное демо работает по адресу:
 
 `https://etrn.stalarvision.ru`
+
+Важно: Stage 17A и Stage 17B приняты в repository baseline, но сами по себе не означают, что production VPS уже обновлён. Любой production update проходит отдельный release gate.
 
 ## Что уже реализовано
 
@@ -30,7 +32,8 @@ Stage 15D был evidence-only rehearsal без изменений application c
 - controlled reset/restart of the current guest demo;
 - PostgreSQL-backed mutation/reset quotas and burst limiting;
 - frontend stale-request and recovery protection;
-- one Chromium E2E happy path including reset;
+- compact guided `DEMO-001` path derived from authoritative shipment state;
+- full Chromium E2E happy path through `completed` including reset;
 - production API/web images and production Compose baseline;
 - same-origin Nginx proxy inside the web container;
 - CI production-stack build, migration, health, smoke and port-exposure checks;
@@ -43,7 +46,8 @@ Stage 15D был evidence-only rehearsal без изменений application c
 - daily PostgreSQL production backup with 7-day VPS retention;
 - verified production restore into a separate temporary database;
 - first verified off-VPS recovery copy on the owner's workstation;
-- post-launch dependency advisory remediation with clean CI run #74.
+- post-launch dependency advisory remediation with clean CI run #74;
+- Stage 17A/17B product-code validation with clean CI run #81.
 
 ## Lifecycle cleanup
 
@@ -99,12 +103,18 @@ Stage 15D был выполнен локально как evidence-only stage б
 
 Посетитель может:
 
-1. открыть демо без регистрации;
-2. выбрать `DEMO-001`;
-3. подтвердить прибытие автомобиля;
-4. завершить погрузку;
-5. увидеть обновление статуса, этапов и истории событий;
-6. вернуть демо в исходное состояние.
+1. открыть демо без регистрации и получить изолированный guest session;
+2. выбрать `DEMO-001` и следовать встроенной guided-подсказке;
+3. ролью `warehouse` подтвердить прибытие автомобиля: `awaiting_loading → loading`;
+4. ролью `warehouse` завершить погрузку: `loading → in_transit`;
+5. ролью `driver` подтвердить прибытие к разгрузке: `in_transit → awaiting_unloading`;
+6. ролью `consignee` начать разгрузку: `awaiting_unloading → unloading`;
+7. ролью `consignee` завершить разгрузку: `unloading → awaiting_confirmation`;
+8. ролью `consignee` подтвердить завершение перевозки: `awaiting_confirmation → completed`;
+9. увидеть обновлённые статус, workflow progress и append-only историю событий;
+10. вернуть демо в детерминированное исходное состояние.
+
+Клиент отправляет только named action и actor role. `nextState` вычисляется domain layer; прямое client-controlled изменение состояния запрещено.
 
 ## Важное ограничение
 
@@ -174,6 +184,8 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-Stage 16 Initial Production Launch и Stage 16C post-launch dependency security maintenance приняты. ETRN Flow развивается как живое online demo: новые законченные этапы проходят review/CI и отдельный release gate перед production update.
+Stage 17A Guided Demo Experience и Stage 17B Complete Transport Lifecycle приняты в repository baseline. Stage 17B подтверждён CI #81 (`Checks`, `Security scan`, `Production stack`), включая PostgreSQL integration tests и Chromium E2E полного `DEMO-001` пути до `completed`.
 
-Следующий продуктовый этап — Stage 17: аудит и приоритизация развития по трём направлениям — глубина demo-сценария, UX первого посещения и коммерческая связь со StalarVision. Новые функции не должны добавляться хаотично или расширять проект до полноценной TMS без отдельного решения.
+Следующий продуктовый шаг должен оставаться узким и коммерчески осмысленным. Приоритет для Stage 17C будет выбран отдельно между дальнейшей demo-depth ценностью и коммерческим слоем; analytics, authentication/RBAC, реальные operator/GIS integrations и расширение до полноценной TMS остаются вне текущего scope.
+
+Принятые Stage 17A/17B изменения не должны считаться автоматически опубликованными в production до отдельного release gate и external smoke.
