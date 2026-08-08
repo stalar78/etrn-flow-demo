@@ -9,6 +9,8 @@ export const shipmentWorkflowActions = [
   "startUnloading",
   "completeUnloading",
   "completeShipment",
+  "reportAttention",
+  "resolveAttention",
   "cancel"
 ] as const;
 
@@ -60,6 +62,16 @@ const transitionRules: Record<ShipmentWorkflowAction, TransitionRule> = {
     from: "awaiting_confirmation",
     to: "completed",
     roles: ["consignee"]
+  },
+  reportAttention: {
+    from: "in_transit",
+    to: "attention_required",
+    roles: ["driver"]
+  },
+  resolveAttention: {
+    from: "attention_required",
+    to: "in_transit",
+    roles: ["manager"]
   },
   cancel: {
     from: "draft",

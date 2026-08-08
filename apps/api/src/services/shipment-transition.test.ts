@@ -74,6 +74,43 @@ describe("ShipmentTransitionService", () => {
     }));
   });
 
+  it("executes an attention branch action through the same guarded persistence path", async () => {
+    const repositories = createRepositoryStub({
+      shipment: shipmentRecord({ state: "in_transit" })
+    });
+    const service = new ShipmentTransitionService(repositories);
+
+    const result = await service.execute({
+      guestSessionId: "session-1",
+      shipmentId: "shipment-1",
+      action: "reportAttention",
+      actorRole: "driver"
+    });
+
+    expect(result).toMatchObject({
+      kind: "success",
+      transition: {
+        shipmentId: "shipment-1",
+        action: "reportAttention",
+        actorRole: "driver",
+        previousState: "in_transit",
+        nextState: "attention_required"
+      }
+    });
+    expect(repositories.shipments.updateStateGuarded).toHaveBeenCalledWith({
+      guestSessionId: "session-1",
+      shipmentId: "shipment-1",
+      expectedState: "in_transit",
+      nextState: "attention_required"
+    });
+    expect(repositories.shipmentEvents.append).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "reportAttention",
+      actorRole: "driver",
+      previousState: "in_transit",
+      nextState: "attention_required"
+    }));
+  });
+
   it("uses the loaded current state as the guarded update expectation", async () => {
     const repositories = createRepositoryStub({
       shipment: shipmentRecord({ state: "awaiting_loading" })

@@ -144,6 +144,99 @@ describe("shipment workflow", () => {
     });
   });
 
+  it.each([
+    {
+      state: "in_transit",
+      action: "reportAttention",
+      actorRole: "driver",
+      nextState: "attention_required"
+    },
+    {
+      state: "attention_required",
+      action: "resolveAttention",
+      actorRole: "manager",
+      nextState: "in_transit"
+    }
+  ] as const)("applies exception branch action $action from $state", ({ state, action, actorRole, nextState }) => {
+    const result = applyShipmentWorkflowAction({
+      state,
+      action,
+      actorRole
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      previousState: state,
+      nextState,
+      action,
+      actorRole
+    });
+  });
+
+  it.each([
+    {
+      state: "in_transit",
+      action: "reportAttention",
+      actorRole: "manager"
+    },
+    {
+      state: "attention_required",
+      action: "resolveAttention",
+      actorRole: "driver"
+    }
+  ] as const)("rejects the wrong role for exception action $action", ({ state, action, actorRole }) => {
+    const result = applyShipmentWorkflowAction({
+      state,
+      action,
+      actorRole
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      state,
+      reason: "unauthorized_role"
+    });
+  });
+
+  it.each([
+    {
+      state: "loading",
+      action: "reportAttention",
+      actorRole: "driver"
+    },
+    {
+      state: "in_transit",
+      action: "resolveAttention",
+      actorRole: "manager"
+    }
+  ] as const)("rejects the wrong source state for exception action $action", ({ state, action, actorRole }) => {
+    const result = applyShipmentWorkflowAction({
+      state,
+      action,
+      actorRole
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      state,
+      reason: "invalid_source_state"
+    });
+  });
+
+  it("does not treat attention_required as terminal", () => {
+    const result = applyShipmentWorkflowAction({
+      state: "attention_required",
+      action: "resolveAttention",
+      actorRole: "manager"
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      previousState: "attention_required",
+      nextState: "in_transit"
+    });
+  });
+
   it("rejects an invalid source state", () => {
     const result = applyShipmentWorkflowAction({
       state: "awaiting_loading",
