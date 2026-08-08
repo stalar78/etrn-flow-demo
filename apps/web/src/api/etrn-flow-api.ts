@@ -29,6 +29,10 @@ const shipmentWorkflowActionSchema = z.enum([
   "dispatch",
   "markVehicleArrived",
   "completeLoading",
+  "arriveForUnloading",
+  "startUnloading",
+  "completeUnloading",
+  "completeShipment",
   "cancel"
 ]);
 

@@ -5,6 +5,10 @@ export const shipmentWorkflowActions = [
   "dispatch",
   "markVehicleArrived",
   "completeLoading",
+  "arriveForUnloading",
+  "startUnloading",
+  "completeUnloading",
+  "completeShipment",
   "cancel"
 ] as const;
 
@@ -36,6 +40,26 @@ const transitionRules: Record<ShipmentWorkflowAction, TransitionRule> = {
     from: "loading",
     to: "in_transit",
     roles: ["warehouse"]
+  },
+  arriveForUnloading: {
+    from: "in_transit",
+    to: "awaiting_unloading",
+    roles: ["driver"]
+  },
+  startUnloading: {
+    from: "awaiting_unloading",
+    to: "unloading",
+    roles: ["consignee"]
+  },
+  completeUnloading: {
+    from: "unloading",
+    to: "awaiting_confirmation",
+    roles: ["consignee"]
+  },
+  completeShipment: {
+    from: "awaiting_confirmation",
+    to: "completed",
+    roles: ["consignee"]
   },
   cancel: {
     from: "draft",

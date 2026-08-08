@@ -100,12 +100,14 @@ describe("App", () => {
     const guidedDemo = getGuidedDemoPanel();
     expect(guidedDemo.getByText(/прибытие автомобиля/iu)).toBeInTheDocument();
     const guidedSteps = guidedDemo.getAllByRole("listitem");
-    expect(within(guidedSteps[0]).getByText("Автомобиль прибыл")).toBeInTheDocument();
+    expect(within(guidedSteps[0]).getByText("Прибытие и погрузка")).toBeInTheDocument();
     expect(within(guidedSteps[0]).getByText("Текущий шаг")).toBeInTheDocument();
-    expect(within(guidedSteps[1]).getByText("Погрузка завершена")).toBeInTheDocument();
+    expect(within(guidedSteps[1]).getByText("Перевозка")).toBeInTheDocument();
     expect(within(guidedSteps[1]).getByText("Ещё не выполнено")).toBeInTheDocument();
-    expect(within(guidedSteps[2]).getByText("Перевозка началась")).toBeInTheDocument();
+    expect(within(guidedSteps[2]).getByText("Разгрузка")).toBeInTheDocument();
     expect(within(guidedSteps[2]).getByText("Ещё не выполнено")).toBeInTheDocument();
+    expect(within(guidedSteps[3]).getByText("Завершение")).toBeInTheDocument();
+    expect(within(guidedSteps[3]).getByText("Ещё не выполнено")).toBeInTheDocument();
   });
 
   it("renders shipment records, selected detail, Russian labels, disclaimer, and ordered timeline", async () => {
@@ -189,73 +191,110 @@ describe("App", () => {
     expect(within(guidedSteps[2]).getByText("Ещё не выполнено")).toBeInTheDocument();
   });
 
-  it("executes a second sequential action and renders both new events in sequence order", async () => {
-    mockedApi.listShipments
-      .mockResolvedValueOnce({
-        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })]
-      })
-      .mockResolvedValueOnce({
-        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })]
-      })
-      .mockResolvedValueOnce({
-        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "in_transit" })]
-      });
-    mockedApi.getShipmentDetail
-      .mockResolvedValueOnce(detailFor("shipment-1"))
-      .mockResolvedValueOnce(detailFor("shipment-1", {
-        events: detailFor("shipment-1").events.concat(shipmentEvent({
-          id: "event-3",
-          sequence: 3,
-          eventType: "markVehicleArrived",
-          actorRole: "warehouse",
-          previousState: "awaiting_loading",
-          nextState: "loading"
-        })),
-        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "loading" })
-      }))
-      .mockResolvedValueOnce(detailFor("shipment-1", {
+  it("executes the full DEMO-001 path and renders the completed guided flow", async () => {
+    const transitions = [
+      {
+        action: "markVehicleArrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading",
+        buttonName: /Подтвердить прибытие автомобиля/i
+      },
+      {
+        action: "completeLoading",
+        actorRole: "warehouse",
+        previousState: "loading",
+        nextState: "in_transit",
+        buttonName: /Завершить погрузку/i
+      },
+      {
+        action: "arriveForUnloading",
+        actorRole: "driver",
+        previousState: "in_transit",
+        nextState: "awaiting_unloading",
+        buttonName: /Подтвердить прибытие к разгрузке/i
+      },
+      {
+        action: "startUnloading",
+        actorRole: "consignee",
+        previousState: "awaiting_unloading",
+        nextState: "unloading",
+        buttonName: /Начать разгрузку/i
+      },
+      {
+        action: "completeUnloading",
+        actorRole: "consignee",
+        previousState: "unloading",
+        nextState: "awaiting_confirmation",
+        buttonName: /Завершить разгрузку/i
+      },
+      {
+        action: "completeShipment",
+        actorRole: "consignee",
+        previousState: "awaiting_confirmation",
+        nextState: "completed",
+        buttonName: /Подтвердить завершение перевозки/i
+      }
+    ] as const;
+    const states = [
+      "awaiting_loading",
+      ...transitions.map((transition) => transition.nextState)
+    ] as const;
+    let listCall = 0;
+    let detailCall = 0;
+    mockedApi.listShipments.mockImplementation(async () => {
+      const state = states[Math.min(listCall, states.length - 1)];
+      listCall += 1;
+
+      return {
+        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state })]
+      };
+    });
+    mockedApi.getShipmentDetail.mockImplementation(async () => {
+      const state = states[Math.min(detailCall, states.length - 1)];
+      const appliedTransitions = transitions.slice(0, detailCall);
+      detailCall += 1;
+
+      return detailFor("shipment-1", {
         events: detailFor("shipment-1").events.concat(
-          shipmentEvent({
-            id: "event-3",
-            sequence: 3,
-            eventType: "markVehicleArrived",
-            actorRole: "warehouse",
-            previousState: "awaiting_loading",
-            nextState: "loading"
-          }),
-          shipmentEvent({
-            id: "event-4",
-            sequence: 4,
-            eventType: "completeLoading",
-            actorRole: "warehouse",
-            previousState: "loading",
-            nextState: "in_transit"
-          })
+          appliedTransitions.map((transition, index) =>
+            shipmentEvent({
+              id: `event-${index + 3}`,
+              sequence: index + 3,
+              eventType: transition.action,
+              actorRole: transition.actorRole,
+              previousState: transition.previousState,
+              nextState: transition.nextState
+            })
+          )
         ),
-        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "in_transit" })
-      }));
+        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state })
+      });
+    });
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Подтвердить прибытие автомобиля/i }));
-    const secondAction = await screen.findByRole("button", { name: /Завершить погрузку/i });
-    fireEvent.click(secondAction);
+    for (const transition of transitions) {
+      fireEvent.click(await screen.findByRole("button", { name: transition.buttonName }));
+    }
 
-    await screen.findByText("Для этого этапа дальнейшего демонстрационного действия пока нет. История событий доступна ниже.");
-    expect(mockedApi.executeShipmentAction).toHaveBeenNthCalledWith(2, "shipment-1", {
-      action: "completeLoading",
-      actorRole: "warehouse"
+    await screen.findByText("Перевозка завершена. История событий доступна ниже.");
+    transitions.forEach((transition, index) => {
+      expect(mockedApi.executeShipmentAction).toHaveBeenNthCalledWith(index + 1, "shipment-1", {
+        action: transition.action,
+        actorRole: transition.actorRole
+      });
     });
 
     const timelineItems = getTimelineItems();
     expect(within(timelineItems[2]).getByText("#3")).toBeInTheDocument();
-    expect(within(timelineItems[3]).getByText("#4")).toBeInTheDocument();
+    expect(within(timelineItems[7]).getByText("#8")).toBeInTheDocument();
     const guidedDemo = getGuidedDemoPanel();
-    expect(guidedDemo.getByText(/Основной сценарий пройден/iu)).toBeInTheDocument();
+    expect(guidedDemo.getByText(/Сценарий завершён/iu)).toBeInTheDocument();
     for (const guidedStep of guidedDemo.getAllByRole("listitem")) {
       expect(within(guidedStep).getByText("Пройдено")).toBeInTheDocument();
     }
-    expect(screen.queryByRole("button", { name: /Завершить погрузку/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Подтвердить завершение перевозки/i })).not.toBeInTheDocument();
   });
 
   it("shows a neutral guided note for prepared examples outside DEMO-001", async () => {
@@ -887,7 +926,7 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByText("Перевозка завершена. История событий доступна ниже.");
-    expect(screen.getByText("Завершение: Завершено — состояние вне основной демонстрационной цепочки.")).toBeInTheDocument();
+    expect(screen.getByText("Завершено — текущий этап")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Завершить погрузку/i })).not.toBeInTheDocument();
   });

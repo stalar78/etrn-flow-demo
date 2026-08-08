@@ -31,6 +31,10 @@ export const actionLabels: Record<ShipmentWorkflowAction, string> = {
   dispatch: "Отправить на погрузку",
   markVehicleArrived: "Подтвердить прибытие автомобиля",
   completeLoading: "Завершить погрузку",
+  arriveForUnloading: "Подтвердить прибытие к разгрузке",
+  startUnloading: "Начать разгрузку",
+  completeUnloading: "Завершить разгрузку",
+  completeShipment: "Подтвердить завершение перевозки",
   cancel: "Отменить перевозку"
 };
 
@@ -42,9 +46,13 @@ export const eventTypeLabels: Record<string, string> = {
   complete_loading: "Погрузка завершена",
   completeLoading: "Погрузка завершена",
   arrive_for_unloading: "Прибыло к разгрузке",
+  arriveForUnloading: "Прибыло к разгрузке",
   start_unloading: "Разгрузка началась",
+  startUnloading: "Разгрузка началась",
   complete_unloading: "Разгрузка завершена",
+  completeUnloading: "Разгрузка завершена",
   complete_shipment: "Перевозка завершена",
+  completeShipment: "Перевозка завершена",
   prepareDispatch: "Подготовлено к отправке",
   cancel: "Перевозка отменена"
 };
@@ -107,10 +115,46 @@ export const workflowActionsByState: Record<ShipmentState, WorkflowActionOption[
       tone: "primary"
     }
   ],
-  in_transit: [],
-  awaiting_unloading: [],
-  unloading: [],
-  awaiting_confirmation: [],
+  in_transit: [
+    {
+      action: "arriveForUnloading",
+      actorRole: "driver",
+      description: "Водитель фиксирует прибытие к месту разгрузки.",
+      label: actionLabels.arriveForUnloading,
+      roleLabel: actorRoleLabels.driver,
+      tone: "primary"
+    }
+  ],
+  awaiting_unloading: [
+    {
+      action: "startUnloading",
+      actorRole: "consignee",
+      description: "Грузополучатель начинает разгрузку.",
+      label: actionLabels.startUnloading,
+      roleLabel: actorRoleLabels.consignee,
+      tone: "primary"
+    }
+  ],
+  unloading: [
+    {
+      action: "completeUnloading",
+      actorRole: "consignee",
+      description: "Фиксирует завершение разгрузки и ожидание финального подтверждения.",
+      label: actionLabels.completeUnloading,
+      roleLabel: actorRoleLabels.consignee,
+      tone: "primary"
+    }
+  ],
+  awaiting_confirmation: [
+    {
+      action: "completeShipment",
+      actorRole: "consignee",
+      description: "Подтверждает завершение синтетической перевозки.",
+      label: actionLabels.completeShipment,
+      roleLabel: actorRoleLabels.consignee,
+      tone: "primary"
+    }
+  ],
   completed: [],
   attention_required: [],
   cancelled: []
@@ -135,7 +179,11 @@ export const happyPathStates: ShipmentState[] = [
   "ready_for_dispatch",
   "awaiting_loading",
   "loading",
-  "in_transit"
+  "in_transit",
+  "awaiting_unloading",
+  "unloading",
+  "awaiting_confirmation",
+  "completed"
 ];
 
 export const branchStateLabels: Partial<Record<ShipmentState, string>> = {

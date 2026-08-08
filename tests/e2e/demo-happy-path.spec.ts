@@ -31,8 +31,32 @@ test("completes the demo happy path and restores the dataset after reset", async
   await expect(page.getByText("В пути").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Погрузка завершена" })).toBeVisible();
 
+  await page.getByRole("button", { name: /Подтвердить прибытие к разгрузке/ }).click();
+
+  await expect(page.getByText("Ожидает разгрузки").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Прибыло к разгрузке" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Начать разгрузку/ }).click();
+
+  await expect(page.getByText("Разгрузка").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Разгрузка началась" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Завершить разгрузку/ }).click();
+
+  await expect(page.getByText("Ожидает подтверждения").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Разгрузка завершена" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Подтвердить завершение перевозки/ }).click();
+
+  await expect(page.getByText("Завершено").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Перевозка завершена" })).toBeVisible();
+  await expect(page.getByText(/Сценарий завершён/)).toBeVisible();
+
   await expect(page.getByRole("heading", { name: "Автомобиль прибыл" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Погрузка завершена" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Прибыло к разгрузке" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Разгрузка началась" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Разгрузка завершена" })).toBeVisible();
 
   await page.getByRole("button", { name: "Начать демо заново" }).click();
 
@@ -46,6 +70,7 @@ test("completes the demo happy path and restores the dataset after reset", async
   await expect(demoShipment).toHaveAttribute("aria-current", "true");
   await expect(page.getByText("Ожидает прибытия на погрузку").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Погрузка завершена" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Перевозка завершена" })).toHaveCount(0);
   await expect(
     page.getByText("Демонстрационный интерфейс. Используются только синтетические данные.")
   ).toBeVisible();
