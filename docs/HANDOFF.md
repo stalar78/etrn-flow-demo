@@ -3,7 +3,7 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–15D, Stage 16A–16C, Stage 16 Initial Production Launch, Stage 17A and Stage 17B are accepted.
+- Stages 03–15D, Stage 16A–16C, Stage 16 Initial Production Launch and Stage 17A–17D are accepted.
 - Stage 12B accepted merge commit: `a1e829ebbd695abc19078362d33a04ffd2b68c15`.
 - Stage 13A accepted merge commit: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`.
 - Stage 14B accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
@@ -15,13 +15,15 @@
 - Stage 16C accepted merge commit: `81a69da562bfe112584f353f1638f2443af3481a`; post-launch dependency advisory remediation is accepted and CI #74 is successful.
 - Stage 17A Guided Demo Experience accepted merge commit: `43ea64c64e9f2daccdf33f477283c27b4fcad25b`.
 - Stage 17B Complete Transport Lifecycle accepted merge commit: `30aa5edb39b773f558a9f651e73e25aee72e9211`; CI #81 is successful.
+- Stage 17C Managed Attention Scenario accepted merge commit: `e1224a823c409749b29ec925aa5245e09c5dfd67`; CI #85 is successful.
+- Stage 17D Commercial Conversion Layer accepted merge commit: `2bc824144674d885a6619f8ec7e596b74e81ffd3`; CI #87 is successful.
 - Public production demo is live at `https://etrn.stalarvision.ru`.
 - Initial production backup/restore and off-VPS recovery-copy verification passed.
-- Stage 17A/17B are accepted in the repository baseline but are not automatically considered deployed to the VPS; production update remains separately gated.
+- Stage 16C and Stage 17A–17D are accepted in the repository baseline but are not automatically considered deployed to the VPS; production update remains separately gated.
 
 ## Current stage
 
-`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 16C post-launch dependency security accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 16C post-launch dependency security accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted`
 
 ## Product boundary
 
@@ -145,7 +147,12 @@ Operational lessons:
   - `startUnloading`: `awaiting_unloading → unloading`, role `consignee`;
   - `completeUnloading`: `unloading → awaiting_confirmation`, role `consignee`;
   - `completeShipment`: `awaiting_confirmation → completed`, role `consignee`.
-- `completed` remains terminal.
+- Accepted `DEMO-002` attention branch is:
+  - `reportAttention`: `in_transit → attention_required`, role `driver`;
+  - `resolveAttention`: `attention_required → in_transit`, role `manager`;
+  - after recovery, the existing normal lifecycle can continue through `arriveForUnloading`.
+- `attention_required` is a branch state, not a terminal state.
+- `completed` and `cancelled` remain terminal.
 
 ### Controlled demo reset
 
@@ -157,9 +164,9 @@ Operational lessons:
 - The deterministic bootstrap definitions are reused.
 - Repeated and concurrent resets do not create duplicate shipments or event chains.
 - Reset of one session does not alter another session.
-- After the Stage 17B full path, reset restores `DEMO-001` to `awaiting_loading` with its deterministic initial event history.
+- Reset restores `DEMO-001` to `awaiting_loading`, `DEMO-002` to `in_transit` and `DEMO-003` to `completed` with deterministic histories.
 
-### Frontend workflow — Stage 17A/17B
+### Frontend workflow — Stage 17A–17D
 
 - Russian operational workspace with same-origin typed API client.
 - Initialization remains health → session → bootstrap → list → deterministic selection → detail.
@@ -168,12 +175,16 @@ Operational lessons:
 - Main demo path: `awaiting_loading → loading → in_transit → awaiting_unloading → unloading → awaiting_confirmation → completed`.
 - Stage 17A added `GuidedDemoPath`, derived from selected shipment reference/state without introducing separate workflow state.
 - Guided phases are compact: arrival/loading, transport, unloading, completion.
-- `DEMO-002` and `DEMO-003` remain prepared examples rather than additional interactive scenarios.
+- Stage 17C made `DEMO-002` an interactive prepared example for controlled attention/recovery; `DEMO-003` remains a completed reference example.
 - `WorkflowProgress` represents the full domain lifecycle; `GuidedDemoPath` explains the visitor path.
 - No optimistic workflow or reset mutation.
 - Reset requires explicit confirmation.
 - Reset and transitions mutually exclude each other in UI controls and immediate handler guards.
 - Controlled failures restore a usable phase and preserve the last complete valid snapshot when appropriate.
+- Stage 17D added `CommercialNextStep` after the operational workspace.
+- The commercial block exposes three discussion directions: workflow, data/existing systems and role-specific interface.
+- The single primary CTA is `Обсудить свою задачу` linking to `https://stalarvision.ru`.
+- The public presentation remains one-independent-developer positioning and does not claim real customers, outcomes or integrations.
 
 ## Production deployment baseline — Stage 16
 
@@ -289,6 +300,7 @@ selectedShipmentId === detail.shipment.id
 Accepted coverage includes:
 
 - workflow domain transitions and denials through `completed`;
+- controlled `attention_required` branch/recovery and continuation back into the normal lifecycle;
 - correct/wrong roles, wrong source state and terminal behavior;
 - persistence repositories and transaction behavior;
 - guest-session lifecycle and cross-session isolation;
@@ -297,33 +309,33 @@ Accepted coverage includes:
 - shipment list/detail API;
 - transition success, denial, isolation and concurrency conflict;
 - full `DEMO-001` integration path through `completed` with ordered append-only events;
+- `DEMO-002` integration path `in_transit → attention_required → in_transit → awaiting_unloading`;
 - controlled reset behavior and cross-session isolation;
 - quota/rate-limit exhaustion, rollback and isolation;
-- frontend initialization, full action execution path, guided state, reset, stale-request guards and recovery;
+- frontend initialization, full action execution path, guided state, attention branch, reset, stale-request guards and recovery;
 - one Chromium E2E happy path through `completed` with reset;
-- product intro, synthetic boundary, CTA and first-visit E2E assertions;
+- product intro, synthetic boundary, commercial next step, CTA and first-visit E2E assertions;
 - production Compose and same-origin stack smoke;
 - production dependency audit and full-history Gitleaks scan;
 - exact CSP/security-header response assertions;
 - local release startup, backup/restore and runtime restart rehearsal;
 - real VPS production startup, HTTPS routing, external API smoke and production backup/restore verification;
 - post-launch dependency remediation validated by CI #74;
-- Stage 17B full validation confirmed by CI #81.
+- Stage 17B full validation confirmed by CI #81;
+- Stage 17C full validation confirmed by CI #85;
+- Stage 17D full validation confirmed by CI #87.
 
-Latest accepted product-code CI: Stage 17B run #81, successful. `Checks`, `Security scan` and `Production stack` all passed, including PostgreSQL persistence integration tests and Chromium E2E.
+Latest accepted product-code CI: Stage 17D run #87, successful. `Checks`, `Security scan` and `Production stack` all passed, including PostgreSQL persistence integration tests and Chromium E2E.
 
 ## Next controlled stage
 
-Stage 17A Guided Demo Experience and Stage 17B Complete Transport Lifecycle are accepted. Stage 17C should be selected as one focused product increment rather than broad implementation.
+Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario and Stage 17D Commercial Conversion Layer are accepted in the repository baseline.
 
-The two strongest remaining directions are:
+The product now demonstrates a complete guided happy path, controlled exception/recovery, role-aware transitions, append-only history and a clear commercial next step. Do not add another feature stage automatically.
 
-- demo depth: introduce one controlled synthetic exception/attention scenario that demonstrates value beyond a happy path without expanding into a full TMS;
-- commercial layer: make the connection from the live demo to StalarVision services and a qualified inquiry clearer without inventing clients, outcomes or integrations.
+The next controlled stage is a production release checkpoint for the accumulated Stage 16C + Stage 17A–17D repository baseline, followed by external smoke and explicit production acceptance.
 
-Do not implement both as one broad stage unless a separate decision explicitly approves that scope.
-
-Future completed stages require review/CI and a separate release gate before updating the live production demo. Stage 17A/17B repository acceptance is not evidence of production deployment.
+Future completed stages require review/CI and a separate release gate before updating the live production demo. Repository acceptance is not evidence of production deployment.
 
 Rate limiting in the accepted application is guest-session based, not client-IP based. Do not invent an IP-rate-limit requirement unless a later stage explicitly introduces one.
 
