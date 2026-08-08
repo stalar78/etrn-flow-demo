@@ -4,15 +4,17 @@
 
 ## Статус
 
-Текущая стадия: `Stages 03–15D accepted → Stage 16A–16B accepted → Stage 16 controlled deployment in progress`.
+Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17 planning`.
 
-Последний принятый repository merge в `main`:
+Последний принятый product-code repository merge в `main`:
 
-`c4e3ffbed9cf0f05c7c849755823e13a2ad605d6`
+`81a69da562bfe112584f353f1638f2443af3481a` (Stage 16C)
 
-Stage 15D был evidence-only rehearsal без изменений application code, schema, Docker/Compose или dependencies. Stage 16A зарезервировал production loopback `127.0.0.1:8083` для ETRN Flow, а Stage 16B закрыл известные vulnerabilities в dev tooling перед deployment.
+Stage 15D был evidence-only rehearsal без изменений application code, schema, Docker/Compose или dependencies. Stage 16A зарезервировал production loopback `127.0.0.1:8083` для ETRN Flow, Stage 16B закрыл известные vulnerabilities в dev tooling перед deployment, Stage 16 завершил первый контролируемый публичный запуск, а Stage 16C устранил post-launch dependency advisory (`postcss`/`nanoid`) без изменения product logic или deployment configuration.
 
-Публичный deployment ещё не выполнялся.
+Публичное демо работает по адресу:
+
+`https://etrn.stalarvision.ru`
 
 ## Что уже реализовано
 
@@ -36,7 +38,12 @@ Stage 15D был evidence-only rehearsal без изменений application c
 - bounded manual cleanup of expired guest sessions and cascaded synthetic data;
 - repository-level production dependency audit and full-history Gitleaks scan;
 - strict Nginx CSP/security headers with production response assertions;
-- locally rehearsed production-like startup, logical PostgreSQL backup/restore and runtime restart persistence.
+- locally rehearsed production-like startup, logical PostgreSQL backup/restore and runtime restart persistence;
+- public VPS deployment with host Nginx, DNS and TLS;
+- daily PostgreSQL production backup with 7-day VPS retention;
+- verified production restore into a separate temporary database;
+- first verified off-VPS recovery copy on the owner's workstation;
+- post-launch dependency advisory remediation with clean CI run #74.
 
 ## Lifecycle cleanup
 
@@ -69,7 +76,7 @@ Stage 15C принят и включает:
 - security headers retained in locations with their own `add_header` directives;
 - production response-header smoke for `/`, `/index.html`, built asset, `/health` and `/api/session`.
 
-Latest accepted Stage 15C PR CI: run #59, successful.
+Stage 16C дополнительно зафиксировал безопасный dependency baseline: `postcss 8.5.26`, `nanoid 3.3.18`, а `vite` и `@vitejs/plugin-react` находятся в `devDependencies`. CI #74 полностью успешен.
 
 ## Release rehearsal
 
@@ -113,17 +120,24 @@ Stage 15D был выполнен локально как evidence-only stage б
 
 ## Production baseline
 
-Принятая контейнерная топология:
+Принятая production-топология:
 
 ```text
-host Nginx + Certbot
+Internet
+→ host Nginx + Certbot
 → 127.0.0.1:8083
 → web container / Nginx
 → api container
 → postgres container
 ```
 
-Репозиторий и container baseline проверены локально и в CI. VPS, DNS, TLS, host Nginx и firewall для ETRN Flow ещё не настраивались.
+Production URL:
+
+`https://etrn.stalarvision.ru`
+
+Stage 16 подтвердил DNS, HTTPS, HTTP→HTTPS redirect, external `/health`, session/bootstrap/list smoke, Secure guest cookie, production backup and restore verification.
+
+Operational paths, backup schedule, restore boundary and off-VPS recovery location зафиксированы в [`docs/PRODUCTION_OPERATIONS.md`](docs/PRODUCTION_OPERATIONS.md).
 
 ## Локальные команды
 
@@ -160,18 +174,6 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-Stage 16 controlled deployment активен; repository pre-deployment gates Stage 16A и Stage 16B приняты.
+Stage 16 Initial Production Launch и Stage 16C post-launch dependency security maintenance приняты. ETRN Flow развивается как живое online demo: новые законченные этапы проходят review/CI и отдельный release gate перед production update.
 
-В deployment gate должны быть приняты и проверены:
-
-- production secrets вне Git;
-- VPS placement;
-- host Nginx reverse proxy;
-- TLS/Certbot и HSTS decision;
-- firewall;
-- external backup storage и retention;
-- production restore procedure;
-- external health/smoke;
-- rollback boundary.
-
-Deployment не начинается неявно из repository-only задачи и требует отдельного контролируемого этапа.
+Следующий продуктовый этап — Stage 17: аудит и приоритизация развития по трём направлениям — глубина demo-сценария, UX первого посещения и коммерческая связь со StalarVision. Новые функции не должны добавляться хаотично или расширять проект до полноценной TMS без отдельного решения.
