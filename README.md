@@ -4,21 +4,23 @@
 
 ## Статус
 
-Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17A–17D accepted and deployed → Stage 18A UX Scenario Orientation & Discoverability accepted and deployed`.
+Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17A–17D accepted and deployed → Stage 18A UX Scenario Orientation & Discoverability accepted and deployed → Stage 18B.1 Operational Snapshot accepted and deployed`.
 
 Последний принятый product-code merge в `main`:
 
-`79491515f3e97222e1343023ae8bab83e86e6935` (Stage 18A.2)
+`854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22` (Stage 18B.1)
 
 Текущий repository/production checkout baseline:
 
-`79491515f3e97222e1343023ae8bab83e86e6935` (`feat: clarify prepared demo scenarios (#35)`)
+`854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22` (`feat: add operational demo snapshot (#37)`)
 
 Stage 17A добавил компактный guided layer для основного `DEMO-001` сценария без отдельного client state. Stage 17B завершил server-authoritative happy path до `completed`, добавив разгрузку и финальное подтверждение через существующие role/state guards, transactional update и append-only event. Stage 17C добавил управляемый branch/recovery для `DEMO-002`: `in_transit → attention_required → in_transit` через роли `driver` и `manager`, после чего перевозка снова может продолжить обычный lifecycle. Stage 17D добавил компактный commercial next step после workspace и перенёс единственный основной CTA вниз страницы.
 
 Stage 18A улучшил ориентацию посетителя без изменения workflow: Stage 18A.1 исправил заголовки подготовленных сценариев и сделал подсказки `DEMO-002` явными для attention/recovery ветки; Stage 18A.2 добавил в список перевозок короткие descriptors `Основной путь перевозки`, `Отклонение и восстановление`, `Завершённый пример`. PR #34 прошёл CI #95, PR #35 — CI #97; оба CI прошли `Checks`, `Security scan` и `Production stack`.
 
-Stage 16C + Stage 17A–17D прошли отдельный controlled production release gate и external smoke 8 августа 2026 года. Последующий UI update добавил фирменный favicon. Stage 18A затем был выпущен отдельным web-only production update: пересобран и пересоздан только `etrn-flow-prod-web`, final health стал `healthy`, production bundle содержал новые scenario descriptors и guided copy, а публичный `/health` остался успешным.
+Stage 18B.1 добавил компактный `OperationalSnapshot` над workspace. Он использует уже загруженный `shipments` и без отдельного state/API показывает только три authoritative значения: `Всего перевозок`, `Требуют внимания` для `attention_required` и `Завершены` для `completed`. PR #37 прошёл CI #101 со всеми тремя принятыми jobs.
+
+Stage 16C + Stage 17A–17D прошли отдельный controlled production release gate и external smoke 8 августа 2026 года. Последующий UI update добавил фирменный favicon. Stage 18A затем был выпущен отдельным web-only production update. Stage 18B.1 также развернут отдельным web-only update: пересобран и пересоздан только `etrn-flow-prod-web`, final health стал `healthy`, production bundle `/assets/index-CfgD7lDU.js` содержит heading и все три metric labels, а публичный `/health` остался успешным.
 
 Публичное демо работает по адресу:
 
@@ -43,6 +45,8 @@ Stage 16C + Stage 17A–17D прошли отдельный controlled productio
 - controlled `DEMO-002` exception/recovery branch through `attention_required`;
 - scenario-aware guided titles and explicit `DEMO-002` attention/recovery guidance;
 - prepared-scenario descriptors in the shipment list for `DEMO-001`, `DEMO-002`, `DEMO-003`;
+- compact operational snapshot derived from the already loaded shipment list;
+- snapshot metrics limited to total shipments, `attention_required` and `completed`;
 - production API/web images and production Compose baseline;
 - same-origin Nginx proxy inside the web container;
 - CI production-stack build, migration, health, smoke and port-exposure checks;
@@ -63,7 +67,9 @@ Stage 16C + Stage 17A–17D прошли отдельный controlled productio
 - StalarVision favicon in the production browser tab, validated by CI #91;
 - Stage 18A.1 Scenario Orientation Polish validated by CI #95;
 - Stage 18A.2 Scenario Discoverability validated by CI #97;
-- accepted Stage 18A web-only production update on checkout `79491515f3e97222e1343023ae8bab83e86e6935`.
+- Stage 18B.1 Operational Snapshot validated by CI #101;
+- accepted Stage 18A web-only production update on checkout `79491515f3e97222e1343023ae8bab83e86e6935`;
+- accepted Stage 18B.1 web-only production update on checkout `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`.
 
 ## Lifecycle cleanup
 
@@ -120,20 +126,21 @@ Stage 15D был выполнен локально как evidence-only stage б
 Посетитель может:
 
 1. открыть демо без регистрации и получить изолированный guest session;
-2. увидеть в списке краткое назначение `DEMO-001`, `DEMO-002`, `DEMO-003`;
-3. выбрать `DEMO-001` и следовать встроенной guided-подсказке;
-4. ролью `warehouse` подтвердить прибытие автомобиля: `awaiting_loading → loading`;
-5. ролью `warehouse` завершить погрузку: `loading → in_transit`;
-6. ролью `driver` подтвердить прибытие к разгрузке: `in_transit → awaiting_unloading`;
-7. ролью `consignee` начать разгрузку: `awaiting_unloading → unloading`;
-8. ролью `consignee` завершить разгрузку: `unloading → awaiting_confirmation`;
-9. ролью `consignee` подтвердить завершение перевозки: `awaiting_confirmation → completed`;
-10. увидеть обновлённые статус, workflow progress и append-only историю событий;
-11. выбрать `DEMO-002`, увидеть заголовок `Сценарий DEMO-002` и явную подсказку к действию `Сообщить о проблеме`;
-12. ролью `driver` перевести перевозку `in_transit → attention_required`, а ролью `manager` вернуть её `attention_required → in_transit` через `Подтвердить решение проблемы`;
-13. после recovery продолжить обычный lifecycle через существующее действие прибытия к разгрузке;
-14. выбрать `DEMO-003` как завершённый подготовленный пример;
-15. вернуть демо в детерминированное исходное состояние.
+2. увидеть оперативную сводку по текущему демо-набору;
+3. увидеть в списке краткое назначение `DEMO-001`, `DEMO-002`, `DEMO-003`;
+4. выбрать `DEMO-001` и следовать встроенной guided-подсказке;
+5. ролью `warehouse` подтвердить прибытие автомобиля: `awaiting_loading → loading`;
+6. ролью `warehouse` завершить погрузку: `loading → in_transit`;
+7. ролью `driver` подтвердить прибытие к разгрузке: `in_transit → awaiting_unloading`;
+8. ролью `consignee` начать разгрузку: `awaiting_unloading → unloading`;
+9. ролью `consignee` завершить разгрузку: `unloading → awaiting_confirmation`;
+10. ролью `consignee` подтвердить завершение перевозки: `awaiting_confirmation → completed`;
+11. увидеть обновлённые статус, workflow progress, operational snapshot и append-only историю событий;
+12. выбрать `DEMO-002`, увидеть заголовок `Сценарий DEMO-002` и явную подсказку к действию `Сообщить о проблеме`;
+13. ролью `driver` перевести перевозку `in_transit → attention_required`, увидеть рост `Требуют внимания`, а ролью `manager` вернуть её `attention_required → in_transit` через `Подтвердить решение проблемы`;
+14. после recovery продолжить обычный lifecycle через существующее действие прибытия к разгрузке;
+15. выбрать `DEMO-003` как завершённый подготовленный пример;
+16. вернуть демо в детерминированное исходное состояние.
 
 Клиент отправляет только named action и actor role. `nextState` вычисляется domain layer; прямое client-controlled изменение состояния запрещено.
 
@@ -172,6 +179,8 @@ Stage 16 подтвердил DNS, HTTPS, HTTP→HTTPS redirect, external `/heal
 
 Stage 18A был развернут следующим isolated frontend update. VPS checkout продвинут до `79491515f3e97222e1343023ae8bab83e86e6935`; пересобран и force-recreated только `etrn-flow-prod-web` с `--no-deps`. Финальный web health — `healthy`. Production bundle `/assets/index-DjBp550v.js` содержит `Основной путь перевозки`, `Отклонение и восстановление`, `Завершённый пример` и новую `DEMO-002` guided copy. Публичный `/health` после обновления остался успешным. API, PostgreSQL, host Nginx, Certbot и соседние проекты не изменялись.
 
+Stage 18B.1 был развернут ещё одним isolated frontend update. VPS checkout продвинут до `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`; пересобран и force-recreated только `etrn-flow-prod-web` с `--no-deps`. Финальный web health — `healthy`. Production bundle `/assets/index-CfgD7lDU.js` содержит `Текущее состояние демо`, `Всего перевозок`, `Требуют внимания` и `Завершены`. Публичный `/health` после обновления остался успешным. API, PostgreSQL, host Nginx, Certbot и соседние проекты не изменялись.
+
 Operational paths, backup schedule, restore boundary and off-VPS recovery location зафиксированы в [`docs/PRODUCTION_OPERATIONS.md`](docs/PRODUCTION_OPERATIONS.md).
 
 ## Локальные команды
@@ -209,8 +218,8 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-Stage 18A UX Scenario Orientation & Discoverability принят и развернут в production. Текущий публичный checkout — `79491515f3e97222e1343023ae8bab83e86e6935`.
+Stage 18B.1 Operational Snapshot принят и развернут в production. Текущий публичный checkout — `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`.
 
-Следующий feature stage не начинается автоматически. Следующее продуктовое направление должно быть отдельным осознанным решением после оценки обновлённого демо и отсутствующих/доступных сигналов от потенциальных заказчиков.
+Следующий feature stage не начинается автоматически. Следующее продуктовое направление должно быть отдельным осознанным решением после оценки обновлённого демо и отсутствующих/доступных сигналов от потенциальных заказчиков. Не следует автоматически расширять snapshot до большого dashboard без отдельного обоснования.
 
 Analytics, authentication/RBAC, реальные operator/GIS integrations и расширение до полноценной TMS остаются вне текущего scope.
