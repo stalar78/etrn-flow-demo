@@ -3,23 +3,23 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–15D and Stage 16A–16B are accepted.
+- Stages 03–15D, Stage 16A–16B and Stage 16 Initial Production Launch are accepted.
 - Stage 12B accepted merge commit: `a1e829ebbd695abc19078362d33a04ffd2b68c15`.
 - Stage 13A accepted merge commit: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`.
 - Stage 14B accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
 - Stage 15B accepted merge commit: `b4868f17563b256b4ca1973f11390f02ac46a942`.
 - Stage 15C accepted product-code merge commit: `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`.
-- Latest accepted Stage 15C PR CI: run #59, successful, including `Checks`, `Security scan` and `Production stack`.
 - Stage 15D was evidence-only and made no application-code, schema, Docker/Compose or dependency changes.
 - Stage 16A accepted merge commit: `5eefbc611c3ac3e0d5bdd3cffa49b1cdaf3b80c3`; production web loopback binding is `127.0.0.1:8083`.
 - Stage 16B accepted merge commit: `c4e3ffbed9cf0f05c7c849755823e13a2ad605d6`; full and production dependency audits are clean after dev-tooling security maintenance.
 - Stage 16B PR CI: run #69, successful.
-- Public deployment has not been performed.
-- Development continues locally.
+- Public production demo is live at `https://etrn.stalarvision.ru`.
+- Initial production backup/restore and off-VPS recovery-copy verification passed.
+- Development now continues against a live production baseline; future completed stages require a separate release gate before production update.
 
 ## Current stage
 
-`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 controlled deployment in progress`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 17 planning`
 
 ## Product boundary
 
@@ -159,7 +159,7 @@ Operational lessons:
 - Reset and transitions mutually exclude each other in UI controls and immediate handler guards.
 - Controlled failures restore a usable phase and preserve the last complete valid snapshot when appropriate.
 
-### Production container baseline
+## Production deployment baseline — Stage 16
 
 Accepted topology:
 
@@ -175,19 +175,29 @@ Internet
 → postgres container
 ```
 
-Implemented and accepted:
+Accepted deployment evidence:
 
-- multi-stage API and web images;
-- non-root API runtime;
-- one-shot migration service;
-- production Compose with only `127.0.0.1:8083:8080` published;
-- isolated production volume naming within the intended deployment;
-- same-origin Nginx proxying;
-- API graceful shutdown;
-- container security/resource hardening appropriate to each runtime;
-- production-stack CI validation, image build, migrations, health, same-origin smoke, security-header smoke, exact port assertion and cleanup.
+- VPS project checkout is isolated under `/home/stanislav/project/etrn-flow`;
+- production secret file exists outside Git tracking at `/home/stanislav/project/etrn-flow/.env.production` with mode `600`;
+- production Compose config validated successfully;
+- PostgreSQL, API and web containers reached healthy state;
+- migration service completed with `Exited (0)`;
+- only `127.0.0.1:8083:8080` is published for ETRN web;
+- direct loopback and host-Nginx health checks returned HTTP 200;
+- DNS for `etrn.stalarvision.ru` resolved to the production VPS;
+- host Nginx proxies to `127.0.0.1:8083` with required forwarded headers;
+- Certbot issued and deployed TLS for `etrn.stalarvision.ru`;
+- HTTP redirects to HTTPS;
+- `certbot renew --dry-run` succeeded;
+- external HTTPS smoke passed for `/`, `/health`, `/api/session`, `/api/demo/bootstrap` and `/api/shipments`;
+- Secure/HttpOnly/SameSite=Lax guest cookie was confirmed in production;
+- first production `pg_dump -Fc` archive was verified with `pg_restore -l` and restored into a separate temporary database;
+- restore verification produced 5 guest sessions, 15 shipments, 70 shipment events and 5 usage-limit rows;
+- the temporary restore database was removed after verification;
+- daily VPS backup schedule is active at `03:20 UTC` with 7-day retention;
+- first verified off-VPS recovery copy was copied to the owner's Windows workstation.
 
-No VPS deployment has been performed.
+Detailed operational paths, backup schedule, restore rules and local recovery location are recorded in [`docs/PRODUCTION_OPERATIONS.md`](PRODUCTION_OPERATIONS.md).
 
 ## Core invariants
 
@@ -266,30 +276,26 @@ Accepted coverage includes:
 - production Compose and same-origin stack smoke;
 - production dependency audit and full-history Gitleaks scan;
 - exact CSP/security-header response assertions;
-- local release startup, backup/restore and runtime restart rehearsal.
+- local release startup, backup/restore and runtime restart rehearsal;
+- real VPS production startup, HTTPS routing, external API smoke and production backup/restore verification.
 
-Latest accepted Stage 16B PR CI: run #69, successful.
+Latest accepted Stage 16B PR CI: run #69, successful. Stage 16 deployment itself was evidence-only operational work on the accepted repository baseline.
 
 ## Next controlled stage
 
-Stage 16 controlled deployment is active; repository pre-deployment gates Stage 16A and Stage 16B are accepted.
+Stage 16 Initial Production Launch is accepted. Stage 17 should start with a focused audit and prioritization of the live demo rather than immediate broad implementation.
 
-It must separately plan and gate:
+Primary Stage 17 evaluation directions:
 
-- production secret provisioning outside Git;
-- VPS placement and directory ownership;
-- host Nginx reverse proxy to `127.0.0.1:8083`;
-- `X-Forwarded-Proto` and other required proxy headers;
-- TLS/Certbot and HSTS decision at the host boundary;
-- firewall exposure;
-- external PostgreSQL backup storage, schedule and retention;
-- production restore procedure;
-- external health/smoke validation;
-- rollback boundary for application/container versions without assuming destructive schema rollback.
+- demo depth: which additional synthetic workflow capability most improves the credibility of the logistics scenario;
+- product UX: what most improves first-visit understanding and the 3–5 minute guided path;
+- commercial layer: what most clearly connects the demo to StalarVision services and a qualified inquiry.
 
-Rate limiting in the accepted application is guest-session based, not client-IP based. Do not invent an IP-rate-limit requirement unless Stage 16 explicitly introduces one.
+Future completed stages require review/CI and a separate release gate before updating the live production demo.
 
-Analytics, authentication/RBAC, real operator integration and product expansion remain deferred.
+Rate limiting in the accepted application is guest-session based, not client-IP based. Do not invent an IP-rate-limit requirement unless a later stage explicitly introduces one.
+
+Analytics, authentication/RBAC, real operator integration and broad TMS expansion remain deferred.
 
 ## Agent workflow rules
 
@@ -307,13 +313,12 @@ Analytics, authentication/RBAC, real operator integration and product expansion 
 
 - accidental positioning as an accredited operator;
 - TMS scope expansion;
-- incorrect host reverse-proxy configuration during deployment;
-- external backup storage/retention not yet configured;
-- production secrets not yet provisioned;
-- TLS/HSTS/firewall not yet configured for ETRN Flow;
 - stale frontend recovery regressions;
 - premature integration or legal-significance claims;
-- deployment actions occurring outside the controlled Stage 16 plan.
+- production secrets or backups being committed accidentally;
+- future releases bypassing the accepted review/release gate;
+- backup copies existing only on the production VPS if the off-VPS recovery routine is not maintained;
+- accidental impact on neighboring ApprovalFlow, QuoteFlow or `elagin-portal` resources during VPS operations.
 
 ## Documents to read first in a new chat
 
@@ -326,3 +331,4 @@ Analytics, authentication/RBAC, real operator integration and product expansion 
 7. `docs/PRODUCT_REQUIREMENTS.md`
 8. `docs/SECURITY_POLICY.md`
 9. `docs/HANDOFF.md`
+10. `docs/PRODUCTION_OPERATIONS.md`
