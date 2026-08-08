@@ -4,19 +4,23 @@
 
 ## Статус
 
-Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted`.
+Текущая стадия: `Stages 03–15D accepted → Stage 16A–16C accepted → Stage 16 Initial Production Launch accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted → controlled production release accepted`.
 
-Последний принятый product-code repository merge в `main`:
+Последний принятый product-code merge в `main`:
 
 `2bc824144674d885a6619f8ec7e596b74e81ffd3` (Stage 17D)
 
-Stage 17A добавил компактный guided layer для основного `DEMO-001` сценария без отдельного client state. Stage 17B завершил server-authoritative happy path до `completed`, добавив разгрузку и финальное подтверждение через существующие role/state guards, transactional update и append-only event. Stage 17C добавил управляемый branch/recovery для `DEMO-002`: `in_transit → attention_required → in_transit` через роли `driver` и `manager`, после чего перевозка снова может продолжить обычный lifecycle. Stage 17D добавил компактный commercial next step после workspace и перенёс единственный основной CTA вниз страницы. Последний принятый product-code CI — #87, полностью успешный.
+Текущий repository/production checkout baseline:
+
+`90a8f81867f6bf1c0d6190ee91176e7b81793d25` (`feat: add favicon (#32)`)
+
+Stage 17A добавил компактный guided layer для основного `DEMO-001` сценария без отдельного client state. Stage 17B завершил server-authoritative happy path до `completed`, добавив разгрузку и финальное подтверждение через существующие role/state guards, transactional update и append-only event. Stage 17C добавил управляемый branch/recovery для `DEMO-002`: `in_transit → attention_required → in_transit` через роли `driver` и `manager`, после чего перевозка снова может продолжить обычный lifecycle. Stage 17D добавил компактный commercial next step после workspace и перенёс единственный основной CTA вниз страницы.
+
+Stage 16C + Stage 17A–17D прошли отдельный controlled production release gate и external smoke 8 августа 2026 года. В production подтверждены guided/full lifecycle, controlled attention/recovery, commercial conversion layer, burst limit `8`, внешний `/health` и точная web-публикация только на `127.0.0.1:8083`. Последующий UI update добавил фирменный favicon; PR #32 подтверждён CI #91 и развернут отдельной пересборкой только web-контейнера.
 
 Публичное демо работает по адресу:
 
 `https://etrn.stalarvision.ru`
-
-Важно: Stage 16C и Stage 17A–17D приняты в repository baseline, но сами по себе не означают, что production VPS уже обновлён до этого baseline. Любой production update проходит отдельный release gate.
 
 ## Что уже реализовано
 
@@ -50,7 +54,9 @@ Stage 17A добавил компактный guided layer для основно
 - post-launch dependency advisory remediation with clean CI run #74;
 - Stage 17A/17B product-code validation with clean CI run #81;
 - Stage 17C product-code validation with clean CI run #85;
-- Stage 17D product-code validation with clean CI run #87.
+- Stage 17D product-code validation with clean CI run #87;
+- controlled Stage 16C + Stage 17A–17D production release with external smoke;
+- StalarVision favicon in the production browser tab, validated by CI #91.
 
 ## Lifecycle cleanup
 
@@ -152,6 +158,8 @@ Production URL:
 
 Stage 16 подтвердил DNS, HTTPS, HTTP→HTTPS redirect, external `/health`, session/bootstrap/list smoke, Secure guest cookie, production backup and restore verification.
 
+8 августа 2026 года накопленный Stage 16C + Stage 17A–17D baseline был отдельно выпущен в production. Перед обновлением создан и проверен custom-format backup `etrn-flow-20260808T131846Z.dump`; после targeted API/web replacement внешний smoke подтвердил `DEMO-002` branch/recovery/continuation и reset. PostgreSQL при runtime replacement не перезапускался. После этого favicon update `90a8f81867f6bf1c0d6190ee91176e7b81793d25` был развернут пересборкой и пересозданием только web-контейнера; `/favicon.png` отвечает HTTP 200 и production HTML содержит `href="/favicon.png"`.
+
 Operational paths, backup schedule, restore boundary and off-VPS recovery location зафиксированы в [`docs/PRODUCTION_OPERATIONS.md`](docs/PRODUCTION_OPERATIONS.md).
 
 ## Локальные команды
@@ -189,8 +197,8 @@ Idea → Architecture → Plan → Build → Review → Docs → Commit → Hand
 
 ## Ближайший шаг
 
-Stage 17C Managed Attention Scenario и Stage 17D Commercial Conversion Layer приняты в repository baseline. Stage 17C подтверждён CI #85, Stage 17D — CI #87; в обоих случаях `Checks`, `Security scan` и `Production stack` завершились успешно.
+Stage 17A–17D не только приняты в repository baseline, но и прошли отдельный controlled production release gate с external smoke. Production сейчас соответствует принятому guided lifecycle + managed attention + commercial conversion baseline; последующий favicon update также развернут и проверен.
 
-Текущий repository baseline уже включает guided happy path, полный transport lifecycle, controlled exception/recovery и коммерческий следующий шаг. Следующий контролируемый этап — не новый feature increment, а отдельный production release checkpoint для накопленного Stage 16C + Stage 17A–17D baseline с последующим external smoke.
+Текущий этап — post-release stabilization/documentation checkpoint. Новый feature stage не начинается автоматически. Следующее продуктово-функциональное направление должно быть отдельным осознанным решением после оценки демо и обратной связи заинтересованных лиц.
 
-До успешного release gate и external smoke нельзя считать production VPS обновлённым до Stage 17D. Analytics, authentication/RBAC, реальные operator/GIS integrations и расширение до полноценной TMS остаются вне текущего scope.
+Analytics, authentication/RBAC, реальные operator/GIS integrations и расширение до полноценной TMS остаются вне текущего scope.
