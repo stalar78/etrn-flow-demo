@@ -237,13 +237,45 @@ Production evidence:
 
 This release is accepted. Stage 18B.1 is therefore deployed in production.
 
-Current production checkout baseline after Stage 18B.1:
+## Stage 18C.1 First-Visit Orientation production update — 2026-08-08
+
+Stage 18C.1 was released after repository acceptance as a separate frontend-only update.
+
+Repository evidence:
+
+- PR #39: `feat: improve first-visit demo orientation`;
+- accepted squash merge: `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`;
+- CI #106 passed `Checks`, `Security scan` and `Production stack`;
+- Chromium E2E passed after replacing the obsolete intro-text assertion with checks for the new first-visit guide;
+- product changes are limited to `apps/web/src/components/ProductIntro.tsx`, `apps/web/src/components/OperationalSnapshot.tsx`, `apps/web/src/styles.css`, `apps/web/src/App.test.tsx` and the synchronized E2E assertion in `tests/e2e/demo-happy-path.spec.ts`;
+- no backend, API, domain, schema, dependency, Docker/Compose, Nginx, workflow, seed or quota behavior changed.
+
+Production evidence:
+
+- pre-update production checkout was `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`;
+- VPS checkout advanced to `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`;
+- only the `web` image was rebuilt;
+- only `etrn-flow-prod-web` was force-recreated with `--no-deps`;
+- final `etrn-flow-prod-web` health was `healthy`;
+- exact host binding remained `127.0.0.1:8083:8080`;
+- production bundle observed after deployment: `/assets/index-DzqLSAxt.js`;
+- production bundle contained `Как посмотреть демо`;
+- production bundle contained `Начните с DEMO-001`;
+- production bundle contained `Следуйте доступному действию`;
+- production bundle contained `Посмотрите, что изменилось`;
+- production bundle contained the snapshot copy beginning `Сводка обновляется вместе с перевозками`;
+- public `/health` returned `{"status":"ok","service":"etrn-flow-api"}`;
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not modified.
+
+This release is accepted. Stage 18C.1 is therefore deployed in production.
+
+Current production checkout baseline after Stage 18C.1:
 
 ```text
-854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22
+b741db2aa957a7996c13dfcf480c4aa9fce7a35c
 ```
 
-The current latest accepted product-code baseline is Stage 18B.1 merge `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`.
+The current latest accepted product-code baseline is Stage 18C.1 merge `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`.
 
 ## Backups on the VPS
 
@@ -341,7 +373,7 @@ The first post-launch repository security maintenance was accepted as Stage 16C:
 - `vite` and `@vitejs/plugin-react` are `devDependencies`;
 - Stage 16C did not change application logic, API, schema, Docker/Compose, Nginx, production ports or VPS configuration.
 
-Stage 16C is deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D. Stage 18A and Stage 18B.1 are also deployed as later web-only updates.
+Stage 16C is deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D. Stage 18A, Stage 18B.1 and Stage 18C.1 are deployed as later web-only updates.
 
 ## Isolation rules
 
