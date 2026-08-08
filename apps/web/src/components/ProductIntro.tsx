@@ -27,10 +27,26 @@ export function ProductIntro() {
       </div>
 
       <div className="product-intro-aside">
-        <p className="demo-instruction">
-          Начните с DEMO-001 и последовательно пройдите перевозку от прибытия на погрузку до завершения.
-          DEMO-002 показывает дополнительный сценарий с управляемым отклонением.
-        </p>
+        <section className="demo-guide" aria-labelledby="demo-guide-title">
+          <h2 className="demo-guide-title" id="demo-guide-title">Как посмотреть демо</h2>
+          <ol className="demo-guide-list">
+            <li className="demo-guide-step">
+              <strong>Начните с DEMO-001</strong>
+              <span className="demo-guide-step-copy">Пройдите основной путь перевозки от погрузки до завершения.</span>
+            </li>
+            <li className="demo-guide-step">
+              <strong>Следуйте доступному действию</strong>
+              <span className="demo-guide-step-copy">Интерфейс показывает следующий допустимый шаг и роль, от которой он выполняется.</span>
+            </li>
+            <li className="demo-guide-step">
+              <strong>Посмотрите, что изменилось</strong>
+              <span className="demo-guide-step-copy">После действия обновляются состояние перевозки, сводка и история событий.</span>
+            </li>
+          </ol>
+          <p className="demo-guide-secondary">
+            DEMO-002 показывает обработку отклонения и возврат в обычный процесс, а DEMO-003 — завершённый пример.
+          </p>
+        </section>
         <p className="product-disclaimer">
           Демо работает только с синтетическими данными. Здесь нет реальных компаний, документов, подписей,
           юридически значимых операций, передачи в ГИС ЭПД или подключения к оператору ИС ЭПД.

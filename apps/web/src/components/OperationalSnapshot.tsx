@@ -19,6 +19,9 @@ export function OperationalSnapshot({ shipments }: OperationalSnapshotProps) {
       <div className="panel-heading operational-snapshot-heading">
         <p className="section-kicker">Сводка</p>
         <h2 id="operational-snapshot-title">Текущее состояние демо</h2>
+        <p className="operational-snapshot-description">
+          Сводка обновляется вместе с перевозками и показывает общую картину текущего демо-сеанса.
+        </p>
       </div>
       <dl className="operational-snapshot-grid">
         {metrics.map((metric) => (

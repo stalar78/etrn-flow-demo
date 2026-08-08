@@ -4,7 +4,10 @@ test("completes the demo happy path and restores the dataset after reset", async
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Демо системы для управления этапами перевозки" })).toBeVisible();
-  await expect(page.getByText(/Начните с DEMO-001 и последовательно пройдите перевозку/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Как посмотреть демо" })).toBeVisible();
+  await expect(page.getByText("Начните с DEMO-001")).toBeVisible();
+  await expect(page.getByText("Следуйте доступному действию")).toBeVisible();
+  await expect(page.getByText("Посмотрите, что изменилось")).toBeVisible();
   await expect(page.getByText(/Демо работает только с синтетическими данными/)).toBeVisible();
   const cta = page.getByRole("link", { name: "Обсудить свою задачу" });
   await expect(cta).toBeVisible();

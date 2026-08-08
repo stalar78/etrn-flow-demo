@@ -80,7 +80,14 @@ describe("App", () => {
       name: "Демо системы для управления этапами перевозки"
     })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByText(/Начните с DEMO-001 и последовательно пройдите перевозку/)).toBeInTheDocument();
+    const demoGuide = getDemoGuide();
+    expect(demoGuide.getByText("Как посмотреть демо")).toBeInTheDocument();
+    expect(demoGuide.getByText("Начните с DEMO-001")).toBeInTheDocument();
+    expect(demoGuide.getByText("Следуйте доступному действию")).toBeInTheDocument();
+    expect(demoGuide.getByText("Посмотрите, что изменилось")).toBeInTheDocument();
+    expect(demoGuide.getByText(/DEMO-002 показывает обработку отклонения/)).toBeInTheDocument();
+    expect(demoGuide.getByText(/DEMO-003 — завершённый пример/)).toBeInTheDocument();
+    expect(demoGuide.getAllByRole("listitem")).toHaveLength(3);
     expect(screen.getByText(/Демо работает только с синтетическими данными/)).toBeInTheDocument();
     expect(screen.getByText(/одним независимым разработчиком StalarVision/)).toBeInTheDocument();
     expect(screen.getByText("Последовательный процесс от погрузки до завершения")).toBeInTheDocument();
@@ -113,6 +120,7 @@ describe("App", () => {
     expect(screen.getByText("Основной путь перевозки")).toBeInTheDocument();
     expect(screen.getByText("Отклонение и восстановление")).toBeInTheDocument();
     const snapshot = getOperationalSnapshot();
+    expect(snapshot.getByText("Сводка обновляется вместе с перевозками и показывает общую картину текущего демо-сеанса.")).toBeInTheDocument();
     expect(snapshot.getByText("Всего перевозок")).toBeInTheDocument();
     expect(snapshot.getByText("Требуют внимания")).toBeInTheDocument();
     expect(snapshot.getByText("Завершены")).toBeInTheDocument();
@@ -1168,6 +1176,17 @@ function getOperationalSnapshot() {
   }
 
   return within(snapshotSection);
+}
+
+function getDemoGuide() {
+  const guideHeading = screen.getByRole("heading", { name: "Как посмотреть демо" });
+  const guideSection = guideHeading.closest("section");
+
+  if (!guideSection) {
+    throw new Error("Demo guide section was not rendered.");
+  }
+
+  return within(guideSection);
 }
 
 function expectSnapshotMetric(snapshot: ReturnType<typeof within>, label: string, value: string) {
