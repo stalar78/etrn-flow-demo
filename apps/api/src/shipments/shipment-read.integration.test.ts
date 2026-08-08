@@ -1100,6 +1100,121 @@ describe("shipment read API", () => {
     expect(repeated.json()).toEqual({ error: "invalid_transition" });
   });
 
+  it("branches DEMO-002 into attention and resolves back to the normal lifecycle", async () => {
+    const app = createTestApp();
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-002");
+
+    const report = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "reportAttention",
+        actorRole: "driver"
+      }
+    });
+    const attentionDetail = await loadShipmentDetail(app, cookie, target.id);
+    const resolve = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "resolveAttention",
+        actorRole: "manager"
+      }
+    });
+    const resolvedDetail = await loadShipmentDetail(app, cookie, target.id);
+    const continueLifecycle = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "arriveForUnloading",
+        actorRole: "driver"
+      }
+    });
+    const after = await loadShipmentDetail(app, cookie, target.id);
+    await app.close();
+
+    expect(target.state).toBe("in_transit");
+    expect(report.statusCode).toBe(200);
+    expect(report.json().transition).toEqual({
+      shipmentId: target.id,
+      action: "reportAttention",
+      actorRole: "driver",
+      previousState: "in_transit",
+      nextState: "attention_required"
+    });
+    expect(attentionDetail.shipment.state).toBe("attention_required");
+    expect(attentionDetail.events.at(-1)).toMatchObject({
+      eventType: "reportAttention",
+      actorRole: "driver",
+      previousState: "in_transit",
+      nextState: "attention_required"
+    });
+    expect(resolve.statusCode).toBe(200);
+    expect(resolve.json().transition).toEqual({
+      shipmentId: target.id,
+      action: "resolveAttention",
+      actorRole: "manager",
+      previousState: "attention_required",
+      nextState: "in_transit"
+    });
+    expect(resolvedDetail.shipment.state).toBe("in_transit");
+    expect(resolvedDetail.events.at(-1)).toMatchObject({
+      eventType: "resolveAttention",
+      actorRole: "manager",
+      previousState: "attention_required",
+      nextState: "in_transit"
+    });
+    expect(continueLifecycle.statusCode).toBe(200);
+    expect(continueLifecycle.json().transition).toEqual({
+      shipmentId: target.id,
+      action: "arriveForUnloading",
+      actorRole: "driver",
+      previousState: "in_transit",
+      nextState: "awaiting_unloading"
+    });
+    expect(after.shipment.state).toBe("awaiting_unloading");
+    expect(after.events.map((event: { eventType: string }) => event.eventType)).toContain("reportAttention");
+    expect(after.events.map((event: { eventType: string }) => event.eventType)).toContain("resolveAttention");
+  });
+
+  it("rejects unauthorized and invalid attention branch transitions", async () => {
+    const app = createTestApp();
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const demo001 = await findShipmentByReference(app, cookie, "DEMO-001");
+    const demo002 = await findShipmentByReference(app, cookie, "DEMO-002");
+
+    const wrongRole = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${demo002.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "reportAttention",
+        actorRole: "manager"
+      }
+    });
+    const wrongSource = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${demo001.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "reportAttention",
+        actorRole: "driver"
+      }
+    });
+    await app.close();
+
+    expect(wrongRole.statusCode).toBe(403);
+    expect(wrongRole.json()).toEqual({ error: "transition_forbidden" });
+    expect(wrongSource.statusCode).toBe(409);
+    expect(wrongSource.json()).toEqual({ error: "invalid_transition" });
+  });
+
   it("rejects repeated and forbidden workflow transitions", async () => {
     const app = createTestApp();
     const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });

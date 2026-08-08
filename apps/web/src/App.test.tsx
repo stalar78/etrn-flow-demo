@@ -306,9 +306,111 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /DEMO-002/i }));
 
     const guidedDemo = getGuidedDemoPanel();
-    expect(await guidedDemo.findByText("Вы просматриваете подготовленный пример другого этапа перевозки.")).toBeInTheDocument();
+    expect(await guidedDemo.findByText(/можно сообщить о проблеме/iu)).toBeInTheDocument();
     expect(guidedDemo.queryByText(/прибытие автомобиля/iu)).not.toBeInTheDocument();
     expect(guidedDemo.queryByRole("listitem")).not.toBeInTheDocument();
+  });
+
+  it("runs the DEMO-002 attention branch and returns to the normal lifecycle", async () => {
+    const demo002InTransit = detailFor("shipment-2");
+    const demo002Attention = detailFor("shipment-2", {
+      events: demo002InTransit.events.concat(shipmentEvent({
+        id: "event-attention",
+        sequence: 5,
+        eventType: "reportAttention",
+        actorRole: "driver",
+        previousState: "in_transit",
+        nextState: "attention_required"
+      })),
+      shipment: shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "attention_required" })
+    });
+    const demo002Resolved = detailFor("shipment-2", {
+      events: demo002Attention.events.concat(shipmentEvent({
+        id: "event-resolved",
+        sequence: 6,
+        eventType: "resolveAttention",
+        actorRole: "manager",
+        previousState: "attention_required",
+        nextState: "in_transit"
+      })),
+      shipment: shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" })
+    });
+
+    mockedApi.listShipments
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "attention_required" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+        ]
+      })
+      .mockResolvedValueOnce({
+        shipments: [
+          shipmentSummary({ id: "reset-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" }),
+          shipmentSummary({ id: "reset-3", reference: "DEMO-003", state: "completed" })
+        ]
+      });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockResolvedValueOnce(demo002InTransit)
+      .mockResolvedValueOnce(demo002Attention)
+      .mockResolvedValueOnce(demo002Resolved)
+      .mockResolvedValueOnce(detailFor("reset-1", {
+        shipment: shipmentSummary({ id: "reset-1", reference: "DEMO-001", state: "awaiting_loading" })
+      }));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /DEMO-001/i });
+    fireEvent.click(screen.getByRole("button", { name: /DEMO-002/i }));
+
+    const guidedDemo = getGuidedDemoPanel();
+    expect(await guidedDemo.findByText(/можно сообщить о проблеме/iu)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Сообщить о проблеме/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/Водитель/).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /Сообщить о проблеме/i }));
+
+    expect((await screen.findAllByText("Требует внимания")).length).toBeGreaterThan(0);
+    expect(await guidedDemo.findByText(/требуется действие менеджера/iu)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Подтвердить решение проблемы/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/Менеджер/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Проблема зафиксирована" })).toBeInTheDocument();
+    expect(screen.getByText(/Исключение:/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Подтвердить решение проблемы/i }));
+
+    expect((await screen.findAllByText("В пути")).length).toBeGreaterThan(0);
+    expect(await guidedDemo.findByText(/можно сообщить о проблеме/iu)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Подтвердить прибытие к разгрузке/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Проблема обработана" })).toBeInTheDocument();
+    expect(mockedApi.executeShipmentAction).toHaveBeenNthCalledWith(1, "shipment-2", {
+      action: "reportAttention",
+      actorRole: "driver"
+    });
+    expect(mockedApi.executeShipmentAction).toHaveBeenNthCalledWith(2, "shipment-2", {
+      action: "resolveAttention",
+      actorRole: "manager"
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Начать демо заново/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Сбросить демо/i }));
+
+    await screen.findByText("Демо восстановлено в исходное состояние.");
+    expect(screen.getByRole("button", { name: /DEMO-002/i })).toHaveTextContent("В пути");
+    expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
   });
 
   it("opens and cancels demo reset confirmation without calling the API", async () => {

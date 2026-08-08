@@ -35,6 +35,8 @@ export const actionLabels: Record<ShipmentWorkflowAction, string> = {
   startUnloading: "Начать разгрузку",
   completeUnloading: "Завершить разгрузку",
   completeShipment: "Подтвердить завершение перевозки",
+  reportAttention: "Сообщить о проблеме",
+  resolveAttention: "Подтвердить решение проблемы",
   cancel: "Отменить перевозку"
 };
 
@@ -53,6 +55,8 @@ export const eventTypeLabels: Record<string, string> = {
   completeUnloading: "Разгрузка завершена",
   complete_shipment: "Перевозка завершена",
   completeShipment: "Перевозка завершена",
+  reportAttention: "Проблема зафиксирована",
+  resolveAttention: "Проблема обработана",
   prepareDispatch: "Подготовлено к отправке",
   cancel: "Перевозка отменена"
 };
@@ -123,6 +127,14 @@ export const workflowActionsByState: Record<ShipmentState, WorkflowActionOption[
       label: actionLabels.arriveForUnloading,
       roleLabel: actorRoleLabels.driver,
       tone: "primary"
+    },
+    {
+      action: "reportAttention",
+      actorRole: "driver",
+      description: "Переводит синтетическую перевозку в состояние, требующее внимания.",
+      label: actionLabels.reportAttention,
+      roleLabel: actorRoleLabels.driver,
+      tone: "secondary"
     }
   ],
   awaiting_unloading: [
@@ -156,7 +168,16 @@ export const workflowActionsByState: Record<ShipmentState, WorkflowActionOption[
     }
   ],
   completed: [],
-  attention_required: [],
+  attention_required: [
+    {
+      action: "resolveAttention",
+      actorRole: "manager",
+      description: "После подтверждения перевозка возвращается в обычный процесс.",
+      label: actionLabels.resolveAttention,
+      roleLabel: actorRoleLabels.manager,
+      tone: "primary"
+    }
+  ],
   cancelled: []
 };
 
