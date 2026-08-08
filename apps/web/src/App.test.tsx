@@ -96,6 +96,16 @@ describe("App", () => {
     expect(mockedApi.listShipments).toHaveBeenCalled();
     expect(mockedApi.getShipmentDetail).toHaveBeenCalledWith("shipment-1");
     expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
+
+    const guidedDemo = getGuidedDemoPanel();
+    expect(guidedDemo.getByText(/прибытие автомобиля/iu)).toBeInTheDocument();
+    const guidedSteps = guidedDemo.getAllByRole("listitem");
+    expect(within(guidedSteps[0]).getByText("Автомобиль прибыл")).toBeInTheDocument();
+    expect(within(guidedSteps[0]).getByText("Текущий шаг")).toBeInTheDocument();
+    expect(within(guidedSteps[1]).getByText("Погрузка завершена")).toBeInTheDocument();
+    expect(within(guidedSteps[1]).getByText("Ещё не выполнено")).toBeInTheDocument();
+    expect(within(guidedSteps[2]).getByText("Перевозка началась")).toBeInTheDocument();
+    expect(within(guidedSteps[2]).getByText("Ещё не выполнено")).toBeInTheDocument();
   });
 
   it("renders shipment records, selected detail, Russian labels, disclaimer, and ordered timeline", async () => {
@@ -170,6 +180,13 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: /Подтвердить прибытие автомобиля/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Завершить погрузку/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /DEMO-001/i })).not.toBeDisabled();
+
+    const guidedDemo = getGuidedDemoPanel();
+    expect(guidedDemo.getByText(/Теперь завершите погрузку/iu)).toBeInTheDocument();
+    const guidedSteps = guidedDemo.getAllByRole("listitem");
+    expect(within(guidedSteps[0]).getByText("Пройдено")).toBeInTheDocument();
+    expect(within(guidedSteps[1]).getByText("Текущий шаг")).toBeInTheDocument();
+    expect(within(guidedSteps[2]).getByText("Ещё не выполнено")).toBeInTheDocument();
   });
 
   it("executes a second sequential action and renders both new events in sequence order", async () => {
@@ -233,7 +250,26 @@ describe("App", () => {
     const timelineItems = getTimelineItems();
     expect(within(timelineItems[2]).getByText("#3")).toBeInTheDocument();
     expect(within(timelineItems[3]).getByText("#4")).toBeInTheDocument();
+    const guidedDemo = getGuidedDemoPanel();
+    expect(guidedDemo.getByText(/Основной сценарий пройден/iu)).toBeInTheDocument();
+    for (const guidedStep of guidedDemo.getAllByRole("listitem")) {
+      expect(within(guidedStep).getByText("Пройдено")).toBeInTheDocument();
+    }
     expect(screen.queryByRole("button", { name: /Завершить погрузку/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a neutral guided note for prepared examples outside DEMO-001", async () => {
+    mockedApi.getShipmentDetail.mockImplementation(async (shipmentId) => detailFor(shipmentId));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /DEMO-001/i });
+    fireEvent.click(screen.getByRole("button", { name: /DEMO-002/i }));
+
+    const guidedDemo = getGuidedDemoPanel();
+    expect(await guidedDemo.findByText("Вы просматриваете подготовленный пример другого этапа перевозки.")).toBeInTheDocument();
+    expect(guidedDemo.queryByText(/прибытие автомобиля/iu)).not.toBeInTheDocument();
+    expect(guidedDemo.queryByRole("listitem")).not.toBeInTheDocument();
   });
 
   it("opens and cancels demo reset confirmation without calling the API", async () => {
@@ -326,6 +362,9 @@ describe("App", () => {
 
     await screen.findByText("Демо восстановлено в исходное состояние.");
     expect(mockedApi.getShipmentDetail).toHaveBeenLastCalledWith("reset-1");
+    const guidedDemo = getGuidedDemoPanel();
+    expect(guidedDemo.getByText(/прибытие автомобиля/iu)).toBeInTheDocument();
+    expect(within(guidedDemo.getAllByRole("listitem")[0]).getByText("Текущий шаг")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("button", { name: /Подтвердить прибытие автомобиля/i })).toBeInTheDocument();
     expect(screen.getByText("Ожидает прибытия на погрузку — текущий этап")).toBeInTheDocument();
@@ -911,6 +950,17 @@ function getTimelineItems() {
   }
 
   return within(timelineSection).getAllByRole("listitem");
+}
+
+function getGuidedDemoPanel() {
+  const guidedHeading = screen.getByRole("heading", { name: "Сценарий DEMO-001" });
+  const guidedSection = guidedHeading.closest("section");
+
+  if (!guidedSection) {
+    throw new Error("Guided demo section was not rendered.");
+  }
+
+  return within(guidedSection);
 }
 
 function shipmentSummary(overrides: Partial<ShipmentDetailResponse["shipment"]> = {}) {

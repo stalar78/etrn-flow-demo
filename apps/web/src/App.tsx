@@ -17,6 +17,7 @@ import {
 import { AppHeader } from "./components/AppHeader";
 import { DemoResetControl } from "./components/DemoResetControl";
 import { EventTimeline } from "./components/EventTimeline";
+import { GuidedDemoPath } from "./components/GuidedDemoPath";
 import { Notice } from "./components/Notice";
 import { ProductIntro } from "./components/ProductIntro";
 import { ShipmentDetail } from "./components/ShipmentDetail";
@@ -360,6 +361,7 @@ export function App() {
               />
               <ShipmentDetail isLoading={detailLoading} shipment={selectedSummary} />
               <WorkflowProgress state={selectedSummary?.state ?? null} />
+              <GuidedDemoPath shipment={selectedSummary} />
               <WorkflowActions
                 confirmationAction={confirmationAction}
                 isTransitioning={phase === "transitioning" || phase === "resetting"}
