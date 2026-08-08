@@ -233,7 +233,7 @@ h3 {
 }
 
 .developer-positioning,
-.demo-instruction,
+.demo-guide,
 .product-disclaimer,
 .demo-disclosure {
   color: var(--color-muted);
@@ -244,13 +244,48 @@ h3 {
   max-width: 52rem;
 }
 
-.demo-instruction {
+.demo-guide {
   padding: var(--space-3);
   border: 1px solid rgb(36 91 73 / 22%);
   border-radius: var(--radius-md);
   background: #eef3e8;
+}
+
+.demo-guide-title {
+  margin-bottom: var(--space-2);
+  color: var(--color-accent-strong);
+  font-size: 1rem;
+}
+
+.demo-guide-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.demo-guide-step {
+  padding-left: var(--space-1);
+}
+
+.demo-guide-step strong,
+.demo-guide-step-copy {
+  display: block;
+}
+
+.demo-guide-step strong {
   color: var(--color-accent-strong);
   font-weight: 800;
+}
+
+.demo-guide-step-copy,
+.demo-guide-secondary {
+  margin-bottom: 0;
+}
+
+.demo-guide-secondary {
+  margin-top: var(--space-2);
+  font-size: 0.92rem;
 }
 
 .product-disclaimer {
@@ -362,6 +397,12 @@ h3 {
 
 .operational-snapshot-heading {
   padding-bottom: 0;
+}
+
+.operational-snapshot-description {
+  margin-top: var(--space-1);
+  color: var(--color-muted);
+  line-height: 1.5;
 }
 
 .operational-snapshot-grid {
