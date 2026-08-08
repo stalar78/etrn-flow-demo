@@ -4,20 +4,23 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stages 03–15D, Stage 16A–16C and Stage 16 Initial Production Launch accepted; Stage 17A–17D accepted
+- Current stage: Stages 03–15D, Stage 16A–16C and Stage 16 Initial Production Launch accepted; Stage 17A–17D accepted and deployed; post-release documentation/stabilization in progress
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Production demo: `https://etrn.stalarvision.ru`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
 - Latest accepted product-code merge commit: `2bc824144674d885a6619f8ec7e596b74e81ffd3` (Stage 17D)
+- Current repository/production checkout baseline: `90a8f81867f6bf1c0d6190ee91176e7b81793d25` (`feat: add favicon (#32)`)
 - Stage 17A accepted merge commit: `43ea64c64e9f2daccdf33f477283c27b4fcad25b`
 - Stage 17B accepted merge commit: `30aa5edb39b773f558a9f651e73e25aee72e9211`
 - Stage 17C accepted merge commit: `e1224a823c409749b29ec925aa5245e09c5dfd67`
 - Stage 17D accepted merge commit: `2bc824144674d885a6619f8ec7e596b74e81ffd3`
-- Latest accepted product-code CI: run #87, successful
+- Latest accepted Stage 17D product-code CI: run #87, successful
+- Latest repository CI for current production checkout: run #91, successful
 - Stage 15D: evidence-only local release rehearsal; no repository implementation changes
 - Stage 16: evidence-only controlled VPS deployment on the accepted repository baseline
-- Public deployment status: live, but Stage 16C and Stage 17A–17D repository acceptance does not by itself mean those changes are deployed
+- Stage 16C + Stage 17A–17D controlled production release: accepted on 2026-08-08 after external smoke
+- Public deployment status: live and confirmed on the accepted Stage 17D behavior; subsequent favicon update is also deployed
 
 ## 2. Purpose
 
@@ -80,6 +83,7 @@ ETRN Flow — публичная интерактивная демонстрац
 - компактная публичная продуктовая подача;
 - `CommercialNextStep` after the workspace;
 - single primary CTA to StalarVision;
+- StalarVision-based browser favicon;
 - bounded manual cleanup истёкших guest sessions и каскадное удаление связанных synthetic rows;
 - repository-level production dependency audit and full-history secret scanning;
 - strict production Nginx CSP/security headers and response assertions;
@@ -90,7 +94,9 @@ ETRN Flow — публичная интерактивная демонстрац
 - post-launch dependency advisory remediation with clean CI #74;
 - Stage 17B full validation with clean CI #81;
 - Stage 17C full validation with clean CI #85;
-- Stage 17D full validation with clean CI #87.
+- Stage 17D full validation with clean CI #87;
+- current repository checkout validation with clean CI #91;
+- accepted 2026-08-08 production release of Stage 16C + Stage 17A–17D with external smoke.
 
 Не входят:
 
@@ -133,7 +139,8 @@ Merged/accepted:
 - Stage 17A — Guided Demo Experience;
 - Stage 17B — Complete Transport Lifecycle;
 - Stage 17C — Managed Attention Scenario;
-- Stage 17D — Commercial Conversion Layer.
+- Stage 17D — Commercial Conversion Layer;
+- post-Stage-17 UI maintenance — StalarVision browser favicon, PR #32.
 
 Accepted merge commits:
 
@@ -148,9 +155,10 @@ Accepted merge commits:
 - Stage 17A: `43ea64c64e9f2daccdf33f477283c27b4fcad25b`;
 - Stage 17B: `30aa5edb39b773f558a9f651e73e25aee72e9211`;
 - Stage 17C: `e1224a823c409749b29ec925aa5245e09c5dfd67`;
-- Stage 17D: `2bc824144674d885a6619f8ec7e596b74e81ffd3`.
+- Stage 17D: `2bc824144674d885a6619f8ec7e596b74e81ffd3`;
+- favicon update: `90a8f81867f6bf1c0d6190ee91176e7b81793d25`.
 
-Stage 15D and Stage 16 required no product-code merge.
+Stage 15D, Stage 16 and the 2026-08-08 production release checkpoint required no new domain/application feature merge.
 
 ## 7. Current backend capabilities
 
@@ -172,7 +180,7 @@ Stage 15D and Stage 16 required no product-code merge.
 - explicit workflow actions and role/state validation;
 - guarded state update and append-only event in one transaction;
 - burst limiting for protected POST endpoints after server-side guest-session resolution;
-- accepted default burst policy: 8 protected POST requests per 10-second window;
+- accepted and deployed default burst policy: 8 protected POST requests per 10-second window;
 - rollback-safe lifetime mutation/reset accounting;
 - controlled quota, rate-limit, conflict and persistence errors;
 - transactional reset through `DemoResetService`;
@@ -263,7 +271,8 @@ Additional limits:
 - `CommercialNextStep` after the workspace;
 - three commercial discussion directions: workflow, data/existing systems and interface for users;
 - single primary CTA `Обсудить свою задачу` to `https://stalarvision.ru`;
-- native `details/summary` disclosure.
+- native `details/summary` disclosure;
+- browser favicon from `apps/web/public/favicon.png`, referenced as `/favicon.png`.
 
 ## 9. Browser and CI baseline
 
@@ -314,7 +323,7 @@ Accepted GitHub CI jobs:
 - exact host-port exposure assertion;
 - cleanup.
 
-Latest accepted product-code CI: Stage 17D run #87, successful. `Checks`, `Security scan` and `Production stack` all passed, including PostgreSQL integration tests and Chromium E2E.
+Latest Stage 17D product-code CI: run #87, successful. Latest repository CI for the current production checkout is run #91, also successful; `Checks`, `Security scan` and `Production stack` all passed.
 
 ## 10. Production baseline
 
@@ -353,11 +362,18 @@ Accepted implementation and deployment:
 - Certbot-managed TLS with successful renewal dry-run;
 - daily PostgreSQL custom-format backups at `03:20 UTC` with 7-day VPS retention;
 - verified production restore into a separate temporary DB;
-- first verified off-VPS recovery copy on the owner's Windows workstation.
+- first verified off-VPS recovery copy on the owner's Windows workstation;
+- Stage 16C + Stage 17A–17D controlled production release accepted on 2026-08-08;
+- pre-release backup `etrn-flow-20260808T131846Z.dump` verified readable before runtime replacement;
+- production runtime burst limit confirmed at `8` protected POST requests per 10 seconds;
+- external production smoke confirmed `DEMO-002` attention/recovery/continuation/reset and final health;
+- targeted release preserved PostgreSQL runtime and did not modify host Nginx, Certbot or neighboring projects;
+- favicon update `90a8f81867f6bf1c0d6190ee91176e7b81793d25` deployed by rebuilding/recreating only the web container;
+- final web health, `/favicon.png` HTTP 200 and production HTML favicon reference verified.
 
-Detailed operational paths and recovery rules are documented in [`docs/PRODUCTION_OPERATIONS.md`](docs/PRODUCTION_OPERATIONS.md).
+Detailed operational paths and recovery/release rules are documented in [`docs/PRODUCTION_OPERATIONS.md`](docs/PRODUCTION_OPERATIONS.md).
 
-Stage 16C and Stage 17A–17D are currently repository-level accepted changes. A separate controlled release is required before claiming the production VPS is on the current `2bc824144674d885a6619f8ec7e596b74e81ffd3` product-code baseline or that the live demo exposes the Stage 17C/17D behavior.
+Production is therefore confirmed on the accepted Stage 17D feature baseline plus the subsequent favicon UI maintenance update.
 
 ## 11. Architecture overview
 
@@ -464,6 +480,7 @@ selectedShipmentId === detail.shipment.id
 - Stage 17B CI #81 validates the expanded lifecycle together with integration, E2E, security and production-stack gates.
 - Stage 17C CI #85 validates the managed attention branch/recovery together with the same gates.
 - Stage 17D CI #87 validates the commercial frontend layer together with the same gates.
+- PR #32 CI #91 validates the current repository checkout including favicon maintenance.
 - Production updates remain manual and explicitly gated.
 
 ### Stage 15D accepted rehearsal evidence
@@ -503,7 +520,8 @@ selectedShipmentId === detail.shipment.id
 - `postcss` resolves to `8.5.26` and `nanoid` to `3.3.18`;
 - full and production audits passed locally;
 - CI #74 passed `Checks`, `Security scan` and `Production stack`;
-- no application logic, API, schema, Docker/Compose, Nginx, production ports or deployment configuration changed.
+- no application logic, API, schema, Docker/Compose, Nginx, production ports or deployment configuration changed;
+- Stage 16C is deployed as part of the accepted 2026-08-08 release.
 
 ### Stage 17A/17B accepted evidence
 
@@ -534,6 +552,26 @@ selectedShipmentId === detail.shipment.id
 - the single primary CTA is `Обсудить свою задачу` to `https://stalarvision.ru`;
 - no workflow, API, backend, domain, database, dependency or deployment changes were introduced;
 - CI #87 passed `Checks`, `Security scan` and `Production stack`.
+
+### 2026-08-08 accepted production release evidence
+
+- Stage 16C + Stage 17A–17D were promoted through a separate release gate;
+- pre-release backup `etrn-flow-20260808T131846Z.dump` was readable before runtime replacement;
+- production environment burst setting was aligned to `8`;
+- build and one-shot migration path completed successfully;
+- API/web targeted replacement reached healthy state without restarting PostgreSQL;
+- exact web exposure remained `127.0.0.1:8083:8080`;
+- production bundle exposed Stage 17D commercial copy;
+- external isolated smoke proved session/bootstrap, `DEMO-002` attention/recovery/continuation, reset and final health;
+- Nginx, Certbot and neighboring project resources were untouched.
+
+### Favicon maintenance evidence
+
+- PR #32 added `apps/web/public/favicon.png` and the `/favicon.png` reference in `apps/web/index.html`;
+- CI #91 passed all three accepted jobs;
+- merge commit `90a8f81867f6bf1c0d6190ee91176e7b81793d25` is deployed;
+- only the web image/container was updated in production;
+- favicon HTTP 200, HTML reference and final web health were verified.
 
 Rate limiting is guest-session based, not client-IP based. Host proxy configuration preserves protocol semantics, but IP-based abuse-control semantics are not part of the accepted application baseline.
 
@@ -570,13 +608,11 @@ Rules:
 
 ## 16. Current next step
 
-Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario and Stage 17D Commercial Conversion Layer are accepted. The repository now has the intended guided happy path, controlled exception/recovery and commercial next step.
+Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario and Stage 17D Commercial Conversion Layer are accepted and deployed. The production demo also includes the subsequent StalarVision favicon maintenance update.
 
-Do not start another feature stage automatically. The next controlled stage is a production release checkpoint for the accumulated Stage 16C + Stage 17A–17D product-code baseline.
+The current controlled step is post-release documentation/stabilization. Do not start another feature stage automatically.
 
-The release checkpoint must preserve the existing isolation constraints, deploy only ETRN resources, run migrations through the accepted production path, and finish with external smoke before production acceptance is claimed.
-
-Do not automatically add analytics, authentication, RBAC, real integrations, product redesign or broad new functionality without a separate stage decision.
+The next product increment, if justified, should be selected only after reviewing the live demo, operational state and feedback from interested users. Do not automatically add analytics, authentication, RBAC, real integrations, product redesign or broad new functionality without a separate stage decision.
 
 Future accepted stages follow:
 
