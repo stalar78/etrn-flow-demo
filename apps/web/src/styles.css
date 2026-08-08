@@ -539,6 +539,73 @@ dd {
   color: var(--color-accent-strong);
 }
 
+.guided-demo-panel {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.guided-demo-instruction {
+  margin: 0;
+  padding: 0 var(--space-4);
+  color: var(--color-accent-strong);
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.guided-demo-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  list-style: none;
+}
+
+.guided-demo-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #f8f4ec;
+  color: var(--color-muted);
+}
+
+.guided-demo-step-number {
+  display: grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.guided-demo-step-copy {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 800;
+}
+
+.guided-demo-status {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.guided-demo-step-completed {
+  color: var(--color-success);
+}
+
+.guided-demo-step-current {
+  border-color: rgb(36 91 73 / 48%);
+  background: #eef3e8;
+  color: var(--color-accent-strong);
+}
+
 .timeline {
   display: grid;
   gap: var(--space-3);
@@ -627,6 +694,7 @@ dd {
   .detail-grid,
   .capability-list,
   .progress-steps,
+  .guided-demo-steps,
   .timeline-item {
     grid-template-columns: 1fr;
   }
@@ -634,6 +702,8 @@ dd {
   .panel-heading,
   .detail-grid,
   .progress-steps,
+  .guided-demo-instruction,
+  .guided-demo-steps,
   .action-stack,
   .timeline {
     padding-right: var(--space-3);
