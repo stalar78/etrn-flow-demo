@@ -3,7 +3,7 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–15D, Stage 16A–16C, Stage 16 Initial Production Launch and Stage 17A–17D are accepted.
+- Stages 03–15D, Stage 16A–16C, Stage 16 Initial Production Launch, Stage 17A–17D and Stage 18A are accepted.
 - Stage 12B accepted merge commit: `a1e829ebbd695abc19078362d33a04ffd2b68c15`.
 - Stage 13A accepted merge commit: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`.
 - Stage 14B accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
@@ -18,15 +18,18 @@
 - Stage 17C Managed Attention Scenario accepted merge commit: `e1224a823c409749b29ec925aa5245e09c5dfd67`; CI #85 is successful.
 - Stage 17D Commercial Conversion Layer accepted merge commit: `2bc824144674d885a6619f8ec7e596b74e81ffd3`; CI #87 is successful.
 - Stage 16C + Stage 17A–17D controlled production release was accepted on 2026-08-08 after external smoke.
-- Public production demo is live at `https://etrn.stalarvision.ru` and exposes the accepted Stage 17D behavior.
-- Current production/repository checkout baseline after the favicon update: `90a8f81867f6bf1c0d6190ee91176e7b81793d25` (`feat: add favicon (#32)`).
-- PR #32 CI #91 passed `Checks`, `Security scan` and `Production stack`; favicon deployment was verified with a healthy web container, HTTP 200 `/favicon.png`, and a production HTML favicon reference.
+- Favicon update accepted merge commit: `90a8f81867f6bf1c0d6190ee91176e7b81793d25`; CI #91 is successful and the favicon is deployed.
+- Stage 18A.1 Scenario Orientation Polish accepted merge commit: `cf0f6b607a91269d4c87069536cccebd5905849f`; CI #95 is successful.
+- Stage 18A.2 Scenario Discoverability in Shipment List accepted merge commit: `79491515f3e97222e1343023ae8bab83e86e6935`; CI #97 is successful.
+- Stage 18A web-only production update was accepted on 2026-08-08 after web health and production bundle smoke.
+- Public production demo is live at `https://etrn.stalarvision.ru` and exposes the accepted Stage 18A behavior.
+- Current production/repository checkout baseline: `79491515f3e97222e1343023ae8bab83e86e6935` (`feat: clarify prepared demo scenarios (#35)`).
 - Initial production backup/restore and off-VPS recovery-copy verification passed.
 - Pre-release backup for the 2026-08-08 Stage 16C + Stage 17A–17D rollout: `/home/stanislav/backups/etrn-flow/etrn-flow-20260808T131846Z.dump`, observed size `28528` bytes, readable as a PostgreSQL custom archive.
 
 ## Current stage
 
-`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 16C post-launch dependency security accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted → controlled production release accepted → post-release documentation/stabilization`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 16C post-launch dependency security accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted → controlled production release accepted → favicon maintenance accepted → Stage 18A UX Scenario Orientation & Discoverability accepted and deployed → documentation sync`
 
 ## Product boundary
 
@@ -169,7 +172,7 @@ Operational lessons:
 - Reset of one session does not alter another session.
 - Reset restores `DEMO-001` to `awaiting_loading`, `DEMO-002` to `in_transit` and `DEMO-003` to `completed` with deterministic histories.
 
-### Frontend workflow — Stage 17A–17D
+### Frontend workflow — Stage 17A–18A
 
 - Russian operational workspace with same-origin typed API client.
 - Initialization remains health → session → bootstrap → list → deterministic selection → detail.
@@ -188,9 +191,12 @@ Operational lessons:
 - The commercial block exposes three discussion directions: workflow, data/existing systems and role-specific interface.
 - The single primary CTA is `Обсудить свою задачу` linking to `https://stalarvision.ru`.
 - The public presentation remains one-independent-developer positioning and does not claim real customers, outcomes or integrations.
-- The production browser tab now uses the StalarVision-based `apps/web/public/favicon.png` referenced from `apps/web/index.html`.
+- The production browser tab uses the StalarVision-based `apps/web/public/favicon.png` referenced from `apps/web/index.html`.
+- Stage 18A.1 makes the guided heading reflect the selected prepared scenario and explicitly guides `DEMO-002` through `Сообщить о проблеме` and `Подтвердить решение проблемы`.
+- Stage 18A.2 adds reference-based descriptors in the shipment list: `Основной путь перевозки`, `Отклонение и восстановление`, `Завершённый пример`.
+- Unknown shipment references do not receive invented descriptors.
 
-## Production deployment baseline — Stage 16 and accepted 2026-08-08 release
+## Production deployment baseline — Stage 16 and accepted 2026-08-08 releases
 
 Accepted topology:
 
@@ -231,7 +237,13 @@ Accepted deployment evidence:
 - runtime burst limit is `8` protected POST requests per 10-second window;
 - production external smoke proved `DEMO-002` attention branch, manager recovery, continuation to `awaiting_unloading`, reset and final health;
 - targeted runtime replacement did not restart PostgreSQL and did not modify host Nginx/Certbot or neighboring projects;
-- subsequent favicon update advanced production checkout to `90a8f81867f6bf1c0d6190ee91176e7b81793d25` and rebuilt/recreated only the web container.
+- favicon update advanced production checkout to `90a8f81867f6bf1c0d6190ee91176e7b81793d25` and rebuilt/recreated only the web container;
+- Stage 18A web-only update advanced production checkout to `79491515f3e97222e1343023ae8bab83e86e6935`;
+- Stage 18A rebuilt/recreated only `etrn-flow-prod-web` with `--no-deps`;
+- final web health was `healthy`;
+- production bundle `/assets/index-DjBp550v.js` contained all three prepared-scenario descriptors and updated `DEMO-002` guided copy;
+- public `/health` remained successful;
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not changed by the Stage 18A release.
 
 Detailed operational paths, backup schedule, restore rules, release evidence and local recovery location are recorded in [`docs/PRODUCTION_OPERATIONS.md`](PRODUCTION_OPERATIONS.md).
 
@@ -323,6 +335,8 @@ Accepted coverage includes:
 - controlled reset behavior and cross-session isolation;
 - quota/rate-limit exhaustion, rollback and isolation;
 - frontend initialization, full action execution path, guided state, attention branch, reset, stale-request guards and recovery;
+- prepared-scenario guided headings and `DEMO-002` guidance assertions from Stage 18A.1;
+- `DEMO-001`, `DEMO-002`, `DEMO-003` shipment-list descriptor assertions from Stage 18A.2;
 - one Chromium E2E happy path through `completed` with reset;
 - product intro, synthetic boundary, commercial next step, CTA and first-visit E2E assertions;
 - production Compose and same-origin stack smoke;
@@ -335,17 +349,20 @@ Accepted coverage includes:
 - Stage 17C full validation confirmed by CI #85;
 - Stage 17D full validation confirmed by CI #87;
 - favicon repository update validated by CI #91;
-- Stage 16C + Stage 17A–17D external production release smoke accepted on 2026-08-08.
+- Stage 18A.1 validation confirmed by CI #95;
+- Stage 18A.2 validation confirmed by CI #97;
+- Stage 16C + Stage 17A–17D external production release smoke accepted on 2026-08-08;
+- Stage 18A web-only production release health/bundle smoke accepted on 2026-08-08.
 
-Latest repository CI relevant to the current production checkout: run #91, successful. `Checks`, `Security scan` and `Production stack` all passed. Latest Stage 17D product-code CI remains run #87.
+Latest repository/product-code CI relevant to the current production checkout: run #97, successful. `Checks`, `Security scan` and `Production stack` all passed.
 
 ## Next controlled stage
 
-Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario and Stage 17D Commercial Conversion Layer are accepted and deployed in production.
+Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario, Stage 17D Commercial Conversion Layer and Stage 18A UX Scenario Orientation & Discoverability are accepted and deployed in production.
 
-The product now demonstrates a complete guided happy path, controlled exception/recovery, role-aware transitions, append-only history and a clear commercial next step. The current release cycle is in post-release documentation/stabilization and should not automatically branch into a new feature stage.
+The product now demonstrates a complete guided happy path, controlled exception/recovery, role-aware transitions, append-only history, scenario discoverability and a clear commercial next step. The current controlled activity is documentation sync after the Stage 18A production update.
 
-The next product stage, if any, should be selected only after reviewing the live demo, operational state and feedback from interested users. Future completed stages still require review/CI and a separate release gate before updating the live production demo.
+After this documentation sync, the next product stage, if any, should be selected only after reviewing the live demo, operational state and available evidence. There is no real-customer feedback yet, so the next increment must not invent user needs or business results. Future completed stages still require review/CI and a separate release gate before updating the live production demo.
 
 Rate limiting in the accepted application is guest-session based, not client-IP based. Do not invent an IP-rate-limit requirement unless a later stage explicitly introduces one.
 
