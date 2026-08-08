@@ -17,13 +17,16 @@
 - Stage 17B Complete Transport Lifecycle accepted merge commit: `30aa5edb39b773f558a9f651e73e25aee72e9211`; CI #81 is successful.
 - Stage 17C Managed Attention Scenario accepted merge commit: `e1224a823c409749b29ec925aa5245e09c5dfd67`; CI #85 is successful.
 - Stage 17D Commercial Conversion Layer accepted merge commit: `2bc824144674d885a6619f8ec7e596b74e81ffd3`; CI #87 is successful.
-- Public production demo is live at `https://etrn.stalarvision.ru`.
+- Stage 16C + Stage 17A–17D controlled production release was accepted on 2026-08-08 after external smoke.
+- Public production demo is live at `https://etrn.stalarvision.ru` and exposes the accepted Stage 17D behavior.
+- Current production/repository checkout baseline after the favicon update: `90a8f81867f6bf1c0d6190ee91176e7b81793d25` (`feat: add favicon (#32)`).
+- PR #32 CI #91 passed `Checks`, `Security scan` and `Production stack`; favicon deployment was verified with a healthy web container, HTTP 200 `/favicon.png`, and a production HTML favicon reference.
 - Initial production backup/restore and off-VPS recovery-copy verification passed.
-- Stage 16C and Stage 17A–17D are accepted in the repository baseline but are not automatically considered deployed to the VPS; production update remains separately gated.
+- Pre-release backup for the 2026-08-08 Stage 16C + Stage 17A–17D rollout: `/home/stanislav/backups/etrn-flow/etrn-flow-20260808T131846Z.dump`, observed size `28528` bytes, readable as a PostgreSQL custom archive.
 
 ## Current stage
 
-`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 16C post-launch dependency security accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 16C post-launch dependency security accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted → controlled production release accepted → post-release documentation/stabilization`
 
 ## Product boundary
 
@@ -185,8 +188,9 @@ Operational lessons:
 - The commercial block exposes three discussion directions: workflow, data/existing systems and role-specific interface.
 - The single primary CTA is `Обсудить свою задачу` linking to `https://stalarvision.ru`.
 - The public presentation remains one-independent-developer positioning and does not claim real customers, outcomes or integrations.
+- The production browser tab now uses the StalarVision-based `apps/web/public/favicon.png` referenced from `apps/web/index.html`.
 
-## Production deployment baseline — Stage 16
+## Production deployment baseline — Stage 16 and accepted 2026-08-08 release
 
 Accepted topology:
 
@@ -222,9 +226,14 @@ Accepted deployment evidence:
 - restore verification produced 5 guest sessions, 15 shipments, 70 shipment events and 5 usage-limit rows;
 - the temporary restore database was removed after verification;
 - daily VPS backup schedule is active at `03:20 UTC` with 7-day retention;
-- first verified off-VPS recovery copy was copied to the owner's Windows workstation.
+- first verified off-VPS recovery copy was copied to the owner's Windows workstation;
+- 2026-08-08 controlled release updated Stage 16C + Stage 17A–17D to production after a readable pre-release backup and successful migration/build gate;
+- runtime burst limit is `8` protected POST requests per 10-second window;
+- production external smoke proved `DEMO-002` attention branch, manager recovery, continuation to `awaiting_unloading`, reset and final health;
+- targeted runtime replacement did not restart PostgreSQL and did not modify host Nginx/Certbot or neighboring projects;
+- subsequent favicon update advanced production checkout to `90a8f81867f6bf1c0d6190ee91176e7b81793d25` and rebuilt/recreated only the web container.
 
-Detailed operational paths, backup schedule, restore rules and local recovery location are recorded in [`docs/PRODUCTION_OPERATIONS.md`](PRODUCTION_OPERATIONS.md).
+Detailed operational paths, backup schedule, restore rules, release evidence and local recovery location are recorded in [`docs/PRODUCTION_OPERATIONS.md`](PRODUCTION_OPERATIONS.md).
 
 ### Post-launch dependency security — Stage 16C
 
@@ -235,7 +244,8 @@ Accepted repository maintenance after launch:
 - the lockfile resolves `nanoid` to `3.3.18`;
 - full local audit and production audit passed;
 - CI #74 passed `Checks`, `Security scan` and `Production stack`;
-- no application logic, API, schema, Docker/Compose, Nginx, production ports or deployment configuration changed.
+- no application logic, API, schema, Docker/Compose, Nginx, production ports or deployment configuration changed;
+- Stage 16C is deployed as part of the accepted 2026-08-08 production release.
 
 ## Core invariants
 
@@ -323,19 +333,19 @@ Accepted coverage includes:
 - post-launch dependency remediation validated by CI #74;
 - Stage 17B full validation confirmed by CI #81;
 - Stage 17C full validation confirmed by CI #85;
-- Stage 17D full validation confirmed by CI #87.
+- Stage 17D full validation confirmed by CI #87;
+- favicon repository update validated by CI #91;
+- Stage 16C + Stage 17A–17D external production release smoke accepted on 2026-08-08.
 
-Latest accepted product-code CI: Stage 17D run #87, successful. `Checks`, `Security scan` and `Production stack` all passed, including PostgreSQL persistence integration tests and Chromium E2E.
+Latest repository CI relevant to the current production checkout: run #91, successful. `Checks`, `Security scan` and `Production stack` all passed. Latest Stage 17D product-code CI remains run #87.
 
 ## Next controlled stage
 
-Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario and Stage 17D Commercial Conversion Layer are accepted in the repository baseline.
+Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario and Stage 17D Commercial Conversion Layer are accepted and deployed in production.
 
-The product now demonstrates a complete guided happy path, controlled exception/recovery, role-aware transitions, append-only history and a clear commercial next step. Do not add another feature stage automatically.
+The product now demonstrates a complete guided happy path, controlled exception/recovery, role-aware transitions, append-only history and a clear commercial next step. The current release cycle is in post-release documentation/stabilization and should not automatically branch into a new feature stage.
 
-The next controlled stage is a production release checkpoint for the accumulated Stage 16C + Stage 17A–17D repository baseline, followed by external smoke and explicit production acceptance.
-
-Future completed stages require review/CI and a separate release gate before updating the live production demo. Repository acceptance is not evidence of production deployment.
+The next product stage, if any, should be selected only after reviewing the live demo, operational state and feedback from interested users. Future completed stages still require review/CI and a separate release gate before updating the live production demo.
 
 Rate limiting in the accepted application is guest-session based, not client-IP based. Do not invent an IP-rate-limit requirement unless a later stage explicitly introduces one.
 
