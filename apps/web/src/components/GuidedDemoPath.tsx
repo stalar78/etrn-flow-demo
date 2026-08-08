@@ -13,9 +13,10 @@ type GuidedDemoState = {
 };
 
 const demoStepLabels = [
-  "Автомобиль прибыл",
-  "Погрузка завершена",
-  "Перевозка началась"
+  "Прибытие и погрузка",
+  "Перевозка",
+  "Разгрузка",
+  "Завершение"
 ] as const;
 
 const statusLabels: Record<DemoStepStatus, string> = {
@@ -95,7 +96,27 @@ function getGuidedDemoState(state: ShipmentState): GuidedDemoState {
       };
     case "in_transit":
       return {
-        instruction: "Основной сценарий пройден: перевозка началась. Посмотрите историю событий или сбросьте демо.",
+        instruction: "Перевозка началась. Следующий шаг — подтвердить прибытие к разгрузке.",
+        steps: buildSteps(1)
+      };
+    case "awaiting_unloading":
+      return {
+        instruction: "Автомобиль прибыл к разгрузке. Теперь начните разгрузку.",
+        steps: buildSteps(2)
+      };
+    case "unloading":
+      return {
+        instruction: "Разгрузка идёт. Завершите разгрузку, чтобы перейти к финальному подтверждению.",
+        steps: buildSteps(2)
+      };
+    case "awaiting_confirmation":
+      return {
+        instruction: "Разгрузка завершена. Подтвердите завершение синтетической перевозки.",
+        steps: buildSteps(3)
+      };
+    case "completed":
+      return {
+        instruction: "Сценарий завершён. История событий доступна ниже, демо можно сбросить в исходное состояние.",
         steps: demoStepLabels.map((label) => ({ label, status: "completed" }))
       };
     default:

@@ -37,6 +37,43 @@ describe("ShipmentTransitionService", () => {
     });
   });
 
+  it("executes an unloading action through the same guarded persistence path", async () => {
+    const repositories = createRepositoryStub({
+      shipment: shipmentRecord({ state: "in_transit" })
+    });
+    const service = new ShipmentTransitionService(repositories);
+
+    const result = await service.execute({
+      guestSessionId: "session-1",
+      shipmentId: "shipment-1",
+      action: "arriveForUnloading",
+      actorRole: "driver"
+    });
+
+    expect(result).toMatchObject({
+      kind: "success",
+      transition: {
+        shipmentId: "shipment-1",
+        action: "arriveForUnloading",
+        actorRole: "driver",
+        previousState: "in_transit",
+        nextState: "awaiting_unloading"
+      }
+    });
+    expect(repositories.shipments.updateStateGuarded).toHaveBeenCalledWith({
+      guestSessionId: "session-1",
+      shipmentId: "shipment-1",
+      expectedState: "in_transit",
+      nextState: "awaiting_unloading"
+    });
+    expect(repositories.shipmentEvents.append).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "arriveForUnloading",
+      actorRole: "driver",
+      previousState: "in_transit",
+      nextState: "awaiting_unloading"
+    }));
+  });
+
   it("uses the loaded current state as the guarded update expectation", async () => {
     const repositories = createRepositoryStub({
       shipment: shipmentRecord({ state: "awaiting_loading" })

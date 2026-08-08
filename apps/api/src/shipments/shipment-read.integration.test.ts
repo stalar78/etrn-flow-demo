@@ -999,6 +999,107 @@ describe("shipment read API", () => {
     );
   });
 
+  it("executes the full DEMO-001 workflow path through completed", async () => {
+    const app = createTestApp();
+    const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
+    const cookie = bootstrap.cookies[0];
+    const target = await findShipmentByReference(app, cookie, "DEMO-001");
+    const transitions = [
+      {
+        action: "markVehicleArrived",
+        actorRole: "warehouse",
+        previousState: "awaiting_loading",
+        nextState: "loading"
+      },
+      {
+        action: "completeLoading",
+        actorRole: "warehouse",
+        previousState: "loading",
+        nextState: "in_transit"
+      },
+      {
+        action: "arriveForUnloading",
+        actorRole: "driver",
+        previousState: "in_transit",
+        nextState: "awaiting_unloading"
+      },
+      {
+        action: "startUnloading",
+        actorRole: "consignee",
+        previousState: "awaiting_unloading",
+        nextState: "unloading"
+      },
+      {
+        action: "completeUnloading",
+        actorRole: "consignee",
+        previousState: "unloading",
+        nextState: "awaiting_confirmation"
+      },
+      {
+        action: "completeShipment",
+        actorRole: "consignee",
+        previousState: "awaiting_confirmation",
+        nextState: "completed"
+      }
+    ] as const;
+
+    for (const transition of transitions) {
+      const response = await app.inject({
+        method: "POST",
+        url: `/api/shipments/${target.id}/actions`,
+        cookies: { [cookie.name]: cookie.value },
+        payload: {
+          action: transition.action,
+          actorRole: transition.actorRole
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().transition).toEqual({
+        shipmentId: target.id,
+        ...transition
+      });
+      expect(response.json().event).toMatchObject({
+        eventType: transition.action,
+        actorRole: transition.actorRole,
+        previousState: transition.previousState,
+        nextState: transition.nextState
+      });
+    }
+
+    const after = await loadShipmentDetail(app, cookie, target.id);
+    const repeated = await app.inject({
+      method: "POST",
+      url: `/api/shipments/${target.id}/actions`,
+      cookies: { [cookie.name]: cookie.value },
+      payload: {
+        action: "completeShipment",
+        actorRole: "consignee"
+      }
+    });
+    await app.close();
+
+    expect(after.shipment.state).toBe("completed");
+    expect(after.events.map((event: { eventType: string }) => event.eventType)).toEqual([
+      "shipment_created",
+      "dispatch",
+      ...transitions.map((transition) => transition.action)
+    ]);
+    expect(after.events.at(-1)).toMatchObject({
+      eventType: "completeShipment",
+      actorRole: "consignee",
+      previousState: "awaiting_confirmation",
+      nextState: "completed"
+    });
+    expect(after.events.map((event: { sequence: number }) => event.sequence)).toEqual(
+      [...after.events.map((event: { sequence: number }) => event.sequence)].sort(
+        (left, right) => left - right
+      )
+    );
+    expect(repeated.statusCode).toBe(409);
+    expect(repeated.json()).toEqual({ error: "invalid_transition" });
+  });
+
   it("rejects repeated and forbidden workflow transitions", async () => {
     const app = createTestApp();
     const bootstrap = await app.inject({ method: "POST", url: "/api/demo/bootstrap" });
@@ -1432,7 +1533,7 @@ function createTestApp(options: {
 function abuseConfig(overrides: Partial<NonNullable<AppOptions["abuseControlConfig"]>> = {}) {
   return {
     mutationLimit: 60,
-    rateMaxRequests: 6,
+    rateMaxRequests: 8,
     rateWindowSeconds: 10,
     resetLimit: 8,
     ...overrides

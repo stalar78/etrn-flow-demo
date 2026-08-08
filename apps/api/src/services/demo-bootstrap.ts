@@ -114,14 +114,14 @@ export const demoShipmentDefinitions = [
       },
       {
         eventType: "start_unloading",
-        actorRole: "warehouse",
+        actorRole: "consignee",
         previousState: "awaiting_unloading",
         nextState: "unloading",
         payload: {}
       },
       {
         eventType: "complete_unloading",
-        actorRole: "warehouse",
+        actorRole: "consignee",
         previousState: "unloading",
         nextState: "awaiting_confirmation",
         payload: {}

@@ -8,7 +8,7 @@ describe("abuse control config", () => {
       mutationLimit: 60,
       resetLimit: 8,
       rateWindowSeconds: 10,
-      rateMaxRequests: 6
+      rateMaxRequests: 8
     });
   });
 

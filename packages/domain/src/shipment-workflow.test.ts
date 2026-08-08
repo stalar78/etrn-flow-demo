@@ -19,6 +19,131 @@ describe("shipment workflow", () => {
     });
   });
 
+  it.each([
+    {
+      state: "in_transit",
+      action: "arriveForUnloading",
+      actorRole: "driver",
+      nextState: "awaiting_unloading"
+    },
+    {
+      state: "awaiting_unloading",
+      action: "startUnloading",
+      actorRole: "consignee",
+      nextState: "unloading"
+    },
+    {
+      state: "unloading",
+      action: "completeUnloading",
+      actorRole: "consignee",
+      nextState: "awaiting_confirmation"
+    },
+    {
+      state: "awaiting_confirmation",
+      action: "completeShipment",
+      actorRole: "consignee",
+      nextState: "completed"
+    }
+  ] as const)("applies $action from $state", ({ state, action, actorRole, nextState }) => {
+    const result = applyShipmentWorkflowAction({
+      state,
+      action,
+      actorRole
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      previousState: state,
+      nextState,
+      action,
+      actorRole
+    });
+  });
+
+  it.each([
+    {
+      state: "in_transit",
+      action: "arriveForUnloading",
+      actorRole: "warehouse"
+    },
+    {
+      state: "awaiting_unloading",
+      action: "startUnloading",
+      actorRole: "driver"
+    },
+    {
+      state: "unloading",
+      action: "completeUnloading",
+      actorRole: "warehouse"
+    },
+    {
+      state: "awaiting_confirmation",
+      action: "completeShipment",
+      actorRole: "driver"
+    }
+  ] as const)("rejects the wrong role for $action", ({ state, action, actorRole }) => {
+    const result = applyShipmentWorkflowAction({
+      state,
+      action,
+      actorRole
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      state,
+      reason: "unauthorized_role"
+    });
+  });
+
+  it.each([
+    {
+      state: "loading",
+      action: "arriveForUnloading",
+      actorRole: "driver"
+    },
+    {
+      state: "in_transit",
+      action: "startUnloading",
+      actorRole: "consignee"
+    },
+    {
+      state: "awaiting_unloading",
+      action: "completeUnloading",
+      actorRole: "consignee"
+    },
+    {
+      state: "unloading",
+      action: "completeShipment",
+      actorRole: "consignee"
+    }
+  ] as const)("rejects the wrong source state for $action", ({ state, action, actorRole }) => {
+    const result = applyShipmentWorkflowAction({
+      state,
+      action,
+      actorRole
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      state,
+      reason: "invalid_source_state"
+    });
+  });
+
+  it("keeps completed shipments terminal", () => {
+    const result = applyShipmentWorkflowAction({
+      state: "completed",
+      action: "completeShipment",
+      actorRole: "consignee"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      state: "completed",
+      reason: "terminal_state"
+    });
+  });
+
   it("rejects an invalid source state", () => {
     const result = applyShipmentWorkflowAction({
       state: "awaiting_loading",
