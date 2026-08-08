@@ -319,9 +319,33 @@ describe("App", () => {
     await screen.findByRole("button", { name: /DEMO-001/i });
     fireEvent.click(screen.getByRole("button", { name: /DEMO-002/i }));
 
-    const guidedDemo = getGuidedDemoPanel();
-    expect(await guidedDemo.findByText(/можно сообщить о проблеме/iu)).toBeInTheDocument();
+    const guidedDemo = getGuidedDemoPanel("DEMO-002");
+    expect(await guidedDemo.findByText(/Сообщить о проблеме/iu)).toBeInTheDocument();
+    expect(guidedDemo.getByText(/обработку отклонения/iu)).toBeInTheDocument();
     expect(guidedDemo.queryByText(/прибытие автомобиля/iu)).not.toBeInTheDocument();
+    expect(guidedDemo.queryByRole("listitem")).not.toBeInTheDocument();
+  });
+
+  it("shows a DEMO-003 guided title with a neutral prepared-example note", async () => {
+    mockedApi.listShipments.mockResolvedValueOnce({
+      shipments: [
+        shipmentSummary({ id: "shipment-3", reference: "DEMO-003", state: "completed" }),
+        shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "awaiting_loading" })
+      ]
+    });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1"))
+      .mockResolvedValueOnce(detailFor("shipment-3", {
+        shipment: shipmentSummary({ id: "shipment-3", reference: "DEMO-003", state: "completed" })
+      }));
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: /DEMO-001/i });
+    fireEvent.click(screen.getByRole("button", { name: /DEMO-003/i }));
+
+    const guidedDemo = getGuidedDemoPanel("DEMO-003");
+    expect(await guidedDemo.findByText("Вы просматриваете подготовленный пример другого этапа перевозки.")).toBeInTheDocument();
     expect(guidedDemo.queryByRole("listitem")).not.toBeInTheDocument();
   });
 
@@ -390,15 +414,18 @@ describe("App", () => {
     await screen.findByRole("button", { name: /DEMO-001/i });
     fireEvent.click(screen.getByRole("button", { name: /DEMO-002/i }));
 
-    const guidedDemo = getGuidedDemoPanel();
-    expect(await guidedDemo.findByText(/можно сообщить о проблеме/iu)).toBeInTheDocument();
+    const guidedDemo = getGuidedDemoPanel("DEMO-002");
+    expect(await guidedDemo.findByText(/Сообщить о проблеме/iu)).toBeInTheDocument();
+    expect(guidedDemo.getByText(/обработку отклонения/iu)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Сообщить о проблеме/i })).toBeInTheDocument();
     expect(screen.getAllByText(/Водитель/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /Сообщить о проблеме/i }));
 
     expect((await screen.findAllByText("Требует внимания")).length).toBeGreaterThan(0);
-    expect(await guidedDemo.findByText(/требуется действие менеджера/iu)).toBeInTheDocument();
+    expect(await guidedDemo.findByText(/Проблема уже зафиксирована/iu)).toBeInTheDocument();
+    expect(guidedDemo.getByText(/Подтвердить решение проблемы/iu)).toBeInTheDocument();
+    expect(guidedDemo.getByText(/вернуть перевозку в обычный процесс/iu)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Подтвердить решение проблемы/i })).toBeInTheDocument();
     expect(screen.getAllByText(/Менеджер/).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Проблема зафиксирована" })).toBeInTheDocument();
@@ -407,7 +434,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Подтвердить решение проблемы/i }));
 
     expect((await screen.findAllByText("В пути")).length).toBeGreaterThan(0);
-    expect(await guidedDemo.findByText(/можно сообщить о проблеме/iu)).toBeInTheDocument();
+    expect(await guidedDemo.findByText(/Сообщить о проблеме/iu)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Подтвердить прибытие к разгрузке/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Проблема обработана" })).toBeInTheDocument();
     expect(mockedApi.executeShipmentAction).toHaveBeenNthCalledWith(1, "shipment-2", {
@@ -1107,8 +1134,8 @@ function getTimelineItems() {
   return within(timelineSection).getAllByRole("listitem");
 }
 
-function getGuidedDemoPanel() {
-  const guidedHeading = screen.getByRole("heading", { name: "Сценарий DEMO-001" });
+function getGuidedDemoPanel(reference = "DEMO-001") {
+  const guidedHeading = screen.getByRole("heading", { name: `Сценарий ${reference}` });
   const guidedSection = guidedHeading.closest("section");
 
   if (!guidedSection) {

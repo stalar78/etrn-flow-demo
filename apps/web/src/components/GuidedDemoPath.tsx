@@ -44,12 +44,13 @@ export function GuidedDemoPath({ shipment }: GuidedDemoPathProps) {
 
   if (shipment.reference !== "DEMO-001") {
     const instruction = getPreparedExampleInstruction(shipment);
+    const title = getGuidedDemoTitle(shipment);
 
     return (
       <section className="panel guided-demo-panel" aria-labelledby="guided-demo-title">
         <div className="panel-heading">
           <p className="section-kicker">Подсказка</p>
-          <h2 id="guided-demo-title">Сценарий DEMO-001</h2>
+          <h2 id="guided-demo-title">{title}</h2>
         </div>
         <p className="guided-demo-instruction">{instruction}</p>
       </section>
@@ -87,15 +88,19 @@ export function GuidedDemoPath({ shipment }: GuidedDemoPathProps) {
 function getPreparedExampleInstruction(shipment: ShipmentSummary) {
   if (shipment.reference === "DEMO-002") {
     if (shipment.state === "attention_required") {
-      return "DEMO-002 показывает дополнительный пример: требуется действие менеджера, чтобы вернуть перевозку в обычный процесс.";
+      return "Проблема уже зафиксирована. Нажмите «Подтвердить решение проблемы», чтобы вернуть перевозку в обычный процесс.";
     }
 
     if (shipment.state === "in_transit") {
-      return "DEMO-002 показывает дополнительный пример: можно сообщить о проблеме или продолжить обычный процесс.";
+      return "Чтобы посмотреть обработку отклонения, нажмите «Сообщить о проблеме». При желании перевозку можно продолжить обычным действием.";
     }
   }
 
   return "Вы просматриваете подготовленный пример другого этапа перевозки.";
+}
+
+function getGuidedDemoTitle(shipment: ShipmentSummary) {
+  return `Сценарий ${shipment.reference}`;
 }
 
 function getGuidedDemoState(state: ShipmentState): GuidedDemoState {
