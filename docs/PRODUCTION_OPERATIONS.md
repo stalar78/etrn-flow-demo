@@ -173,13 +173,45 @@ Production evidence:
 - public `/health` remained successful;
 - API, PostgreSQL, host Nginx, Certbot and neighboring projects were not changed.
 
-Current production checkout baseline after this update:
+## Stage 18A UX production update — 2026-08-08
+
+Stage 18A was released after repository acceptance as a separate frontend-only update.
+
+Repository evidence:
+
+- Stage 18A.1 — Scenario Orientation Polish, PR #34;
+- Stage 18A.1 accepted squash merge: `cf0f6b607a91269d4c87069536cccebd5905849f`;
+- CI #95 passed `Checks`, `Security scan` and `Production stack`;
+- Stage 18A.2 — Scenario Discoverability in Shipment List, PR #35;
+- Stage 18A.2 accepted squash merge: `79491515f3e97222e1343023ae8bab83e86e6935`;
+- CI #97 passed `Checks`, `Security scan` and `Production stack`.
+
+Production evidence:
+
+- VPS checkout advanced from the post-release docs baseline to `79491515f3e97222e1343023ae8bab83e86e6935`;
+- the update affected only frontend code and styles;
+- only the `web` image was rebuilt;
+- only `etrn-flow-prod-web` was force-recreated with `--no-deps`;
+- API and PostgreSQL were not rebuilt or restarted;
+- host Nginx and Certbot were not modified;
+- neighboring projects were not modified;
+- final `etrn-flow-prod-web` health was `healthy`;
+- production bundle observed after deployment: `/assets/index-DjBp550v.js`;
+- production bundle contained `Основной путь перевозки`;
+- production bundle contained `Отклонение и восстановление`;
+- production bundle contained `Завершённый пример`;
+- production bundle contained the updated `DEMO-002` guided text beginning `Чтобы посмотреть обработку отклонения`;
+- public `/health` remained successful with `{"status":"ok","service":"etrn-flow-api"}`.
+
+This release is accepted. Stage 18A is therefore deployed in production.
+
+Current production checkout baseline after Stage 18A:
 
 ```text
-90a8f81867f6bf1c0d6190ee91176e7b81793d25
+79491515f3e97222e1343023ae8bab83e86e6935
 ```
 
-The latest domain/application feature baseline inside that checkout remains Stage 17D merge `2bc824144674d885a6619f8ec7e596b74e81ffd3`.
+The current latest accepted product-code baseline is Stage 18A.2 merge `79491515f3e97222e1343023ae8bab83e86e6935`.
 
 ## Backups on the VPS
 
@@ -277,7 +309,7 @@ The first post-launch repository security maintenance was accepted as Stage 16C:
 - `vite` and `@vitejs/plugin-react` are `devDependencies`;
 - Stage 16C did not change application logic, API, schema, Docker/Compose, Nginx, production ports or VPS configuration.
 
-Stage 16C is now deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D.
+Stage 16C is deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D. Stage 18A is also deployed as a later web-only update.
 
 ## Isolation rules
 
