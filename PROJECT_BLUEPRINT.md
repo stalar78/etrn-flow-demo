@@ -161,7 +161,7 @@ Accepted merge commits:
 - Stage 14B: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`;
 - Stage 15B: `b4868f17563b256b4ca1973f11390f02ac46a942`;
 - Stage 15C: `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`;
-- Stage 16A: `5eefbc611c3ac9ca897bdd932d01c7e5ce6479`;
+- Stage 16A: `5eefbc611c3ac3e0d5bdd3cffa49b1cdaf3b80c3`;
 - Stage 16B: `c4e3ffbed9cf0f05c7c849755823e13a2ad605d6`;
 - Stage 16C: `81a69da562bfe112584f353f1638f2443af3481a`;
 - Stage 17A: `43ea64c64e9f2daccdf33f477283c27b4fcad25b`;
@@ -656,7 +656,7 @@ Rules:
 
 Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario, Stage 17D Commercial Conversion Layer and Stage 18A UX Scenario Orientation & Discoverability are accepted and deployed. The production demo also includes the StalarVision favicon maintenance update.
 
-The current controlled step is documentation sync after the accepted Stage 18A web-only production update. After this sync, do not start another feature stage automatically.
+The Stage 18A documentation sync records the accepted repository, CI and production evidence. No feature stage is currently active.
 
 The next product increment, if justified, should be selected only after reviewing the live demo, operational state and available evidence in the absence of real-customer feedback. Do not automatically add analytics, authentication, RBAC, real integrations, product redesign or broad new functionality without a separate stage decision.
 
