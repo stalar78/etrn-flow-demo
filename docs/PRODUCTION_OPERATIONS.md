@@ -205,13 +205,45 @@ Production evidence:
 
 This release is accepted. Stage 18A is therefore deployed in production.
 
-Current production checkout baseline after Stage 18A:
+## Stage 18B.1 Operational Snapshot production update — 2026-08-08
+
+Stage 18B.1 was released after repository acceptance as a separate frontend-only update.
+
+Repository evidence:
+
+- PR #37: `feat: add operational demo snapshot`;
+- accepted squash merge: `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`;
+- CI #101 passed `Checks`, `Security scan` and `Production stack`;
+- application changes are limited to `apps/web/src/components/OperationalSnapshot.tsx`, `apps/web/src/App.tsx`, `apps/web/src/styles.css` and `apps/web/src/App.test.tsx`;
+- the snapshot is derived from the existing `shipments` array and introduces no separate client state or additional API request;
+- metric semantics are limited to total shipments, `attention_required` and `completed`.
+
+Production evidence:
+
+- pre-update production checkout was `79491515f3e97222e1343023ae8bab83e86e6935`;
+- VPS checkout advanced to `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`;
+- only the `web` image was rebuilt;
+- only `etrn-flow-prod-web` was force-recreated with `--no-deps`;
+- web health progressed from `starting` to `healthy`;
+- API and PostgreSQL were not rebuilt or restarted;
+- host Nginx and Certbot were not modified;
+- neighboring projects were not modified;
+- public `/health` remained successful with `{"status":"ok","service":"etrn-flow-api"}`;
+- production bundle observed after deployment: `/assets/index-CfgD7lDU.js`;
+- production bundle contained `Текущее состояние демо`;
+- production bundle contained `Всего перевозок`;
+- production bundle contained `Требуют внимания`;
+- production bundle contained `Завершены`.
+
+This release is accepted. Stage 18B.1 is therefore deployed in production.
+
+Current production checkout baseline after Stage 18B.1:
 
 ```text
-79491515f3e97222e1343023ae8bab83e86e6935
+854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22
 ```
 
-The current latest accepted product-code baseline is Stage 18A.2 merge `79491515f3e97222e1343023ae8bab83e86e6935`.
+The current latest accepted product-code baseline is Stage 18B.1 merge `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`.
 
 ## Backups on the VPS
 
@@ -309,7 +341,7 @@ The first post-launch repository security maintenance was accepted as Stage 16C:
 - `vite` and `@vitejs/plugin-react` are `devDependencies`;
 - Stage 16C did not change application logic, API, schema, Docker/Compose, Nginx, production ports or VPS configuration.
 
-Stage 16C is deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D. Stage 18A is also deployed as a later web-only update.
+Stage 16C is deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D. Stage 18A and Stage 18B.1 are also deployed as later web-only updates.
 
 ## Isolation rules
 
