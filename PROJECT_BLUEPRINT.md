@@ -4,14 +4,16 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stages 03–15D and Stage 16A–16B accepted; Stage 16 controlled deployment is in progress
+- Current stage: Stages 03–15D, Stage 16A–16C and Stage 16 Initial Production Launch accepted; Stage 17 planning
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
+- Production demo: `https://etrn.stalarvision.ru`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
-- Latest accepted repository merge commit: `c4e3ffbed9cf0f05c7c849755823e13a2ad605d6` (Stage 16B)
-- Latest accepted Stage 16B PR CI: run #69, successful
+- Latest accepted product-code merge commit: `81a69da562bfe112584f353f1638f2443af3481a` (Stage 16C)
+- Latest accepted repository security CI: run #74, successful
 - Stage 15D: evidence-only local release rehearsal; no repository implementation changes
-- Public deployment status: not deployed
+- Stage 16: evidence-only controlled VPS deployment on the accepted repository baseline
+- Public deployment status: live
 
 ## 2. Purpose
 
@@ -73,7 +75,11 @@ ETRN Flow — публичная интерактивная демонстрац
 - bounded manual cleanup истёкших guest sessions и каскадное удаление связанных synthetic rows;
 - repository-level production dependency audit and full-history secret scanning;
 - strict production Nginx CSP/security headers and response assertions;
-- locally rehearsed production-like startup, logical PostgreSQL backup/restore and runtime restart persistence.
+- locally rehearsed production-like startup, logical PostgreSQL backup/restore and runtime restart persistence;
+- controlled public VPS deployment with DNS, host Nginx and TLS;
+- daily production backup with 7-day VPS retention;
+- verified restore into a separate database and first off-VPS recovery copy;
+- post-launch dependency advisory remediation with clean CI #74.
 
 Не входят:
 
@@ -86,8 +92,7 @@ ETRN Flow — публичная интерактивная демонстрац
 - полноценная TMS;
 - production multi-tenancy для клиентов;
 - authentication/RBAC;
-- аналитика и tracking vendor;
-- публичный deployment.
+- аналитика и tracking vendor.
 
 ## 6. Accepted implementation baseline
 
@@ -111,7 +116,9 @@ Merged/accepted:
 - Stage 15C — repository-level public-release security hardening;
 - Stage 15D — local release, backup/restore and restart rehearsal (evidence-only);
 - Stage 16A — production host-port isolation on `127.0.0.1:8083`;
-- Stage 16B — dev-tooling security maintenance with clean full and production dependency audits.
+- Stage 16B — dev-tooling security maintenance before deployment;
+- Stage 16 — Initial Production Launch on `https://etrn.stalarvision.ru` (evidence-only operational stage);
+- Stage 16C — post-launch dependency security remediation (`postcss 8.5.26`, `nanoid 3.3.18`).
 
 Accepted merge commits:
 
@@ -121,9 +128,10 @@ Accepted merge commits:
 - Stage 15B: `b4868f17563b256b4ca1973f11390f02ac46a942`;
 - Stage 15C: `4ae57a70c1c1e0f5ef5455f4208e00a54870ab69`;
 - Stage 16A: `5eefbc611c3ac3e0d5bdd3cffa49b1cdaf3b80c3`;
-- Stage 16B: `c4e3ffbed9cf0f05c7c849755823e13a2ad605d6`.
+- Stage 16B: `c4e3ffbed9cf0f05c7c849755823e13a2ad605d6`;
+- Stage 16C: `81a69da562bfe112584f353f1638f2443af3481a`.
 
-Stage 15D required no product-code merge.
+Stage 15D and Stage 16 required no product-code merge.
 
 ## 7. Current backend capabilities
 
@@ -248,9 +256,9 @@ Accepted GitHub CI jobs:
 - exact host-port exposure assertion;
 - cleanup.
 
-Latest accepted Stage 16B PR CI: run #69, successful.
+Latest accepted repository security CI: Stage 16C run #74, successful.
 
-## 10. Production container baseline
+## 10. Production baseline
 
 Accepted topology:
 
@@ -266,7 +274,7 @@ Internet
 → postgres container
 ```
 
-Accepted implementation:
+Accepted implementation and deployment:
 
 - multi-stage API image based on Node 22 Alpine;
 - compiled JavaScript runtime only;
@@ -279,11 +287,17 @@ Accepted implementation:
 - container hardening appropriate to API and web runtime constraints;
 - `.env.production.example` without secrets;
 - reusable `infra/nginx/security-headers.conf`;
-- strict CSP and security headers applied to server and cache-specific locations.
+- strict CSP and security headers applied to server and cache-specific locations;
+- production checkout at `/home/stanislav/project/etrn-flow`;
+- production environment at `/home/stanislav/project/etrn-flow/.env.production`, ignored by Git and mode `600`;
+- public DNS and HTTPS endpoint `https://etrn.stalarvision.ru`;
+- host Nginx reverse proxy to `127.0.0.1:8083`;
+- Certbot-managed TLS with successful renewal dry-run;
+- daily PostgreSQL custom-format backups at `03:20 UTC` with 7-day VPS retention;
+- verified production restore into a separate temporary DB;
+- first verified off-VPS recovery copy on the owner's Windows workstation.
 
-Stage 15D proved this baseline locally with a clean synthetic production-like environment, migrations, health/API smoke, logical backup/restore and runtime restart persistence.
-
-No VPS deployment, host Nginx configuration, TLS, DNS or firewall work has been accepted.
+Detailed operational paths and recovery rules are documented in [`docs/PRODUCTION_OPERATIONS.md`](docs/PRODUCTION_OPERATIONS.md).
 
 ## 11. Architecture overview
 
@@ -386,8 +400,8 @@ selectedShipmentId === detail.shipment.id
 - Production dependency audit is enforced in CI.
 - Full-history Gitleaks secret scanning is enforced in CI.
 - Strict CSP and security response headers are asserted against production-like responses.
-- Full and production dependency audits were clean at the accepted Stage 16B gate.
-- Production deployment remains manual and explicitly gated.
+- Stage 16C full and production dependency audits are clean.
+- Production updates remain manual and explicitly gated.
 
 ### Stage 15D accepted rehearsal evidence
 
@@ -403,19 +417,32 @@ selectedShipmentId === detail.shipment.id
 - restart of `api` and `web` preserved current PostgreSQL state;
 - all rehearsal artifacts and temporary Docker resources were removed after acceptance.
 
-### Remaining deployment-stage work
+### Stage 16 accepted production evidence
 
-- production secret provisioning;
-- external backup destination, schedule and retention;
-- production restore procedure;
-- VPS placement and permissions;
-- host Nginx reverse proxy and forwarded-proto correctness;
-- TLS/Certbot and HSTS decision;
-- firewall;
-- external smoke after deployment;
-- rollback boundary for application/container version without assuming destructive schema rollback.
+- isolated VPS placement passed;
+- production secrets were provisioned outside Git;
+- production Compose validation passed;
+- migrations completed successfully;
+- `postgres`, `api` and `web` reached healthy state;
+- host Nginx routing and `X-Forwarded-Proto` path were accepted;
+- DNS resolved to the production VPS;
+- Certbot TLS issuance and auto-renew dry-run passed;
+- HTTP redirects to HTTPS;
+- public `/`, `/health`, `/api/session`, `/api/demo/bootstrap` and `/api/shipments` smoke passed over HTTPS;
+- first production logical backup was readable and successfully restored into a separate temporary database;
+- restored production snapshot contained 5 guest sessions, 15 shipments, 70 shipment events and 5 usage-limit rows;
+- daily backup schedule and 7-day VPS retention are active;
+- first off-VPS recovery copy was verified on the owner's workstation.
 
-Rate limiting is guest-session based, not client-IP based. Host proxy configuration must preserve protocol semantics, but IP-based abuse-control semantics are not part of the accepted application baseline.
+### Stage 16C accepted dependency-security evidence
+
+- `vite` and `@vitejs/plugin-react` moved to `devDependencies`;
+- `postcss` resolves to `8.5.26` and `nanoid` to `3.3.18`;
+- full and production audits passed locally;
+- CI #74 passed `Checks`, `Security scan` and `Production stack`;
+- no application logic, API, schema, Docker/Compose, Nginx, production ports or deployment configuration changed.
+
+Rate limiting is guest-session based, not client-IP based. Host proxy configuration preserves protocol semantics, but IP-based abuse-control semantics are not part of the accepted application baseline.
 
 ## 14. AI-agent workflow
 
@@ -439,34 +466,35 @@ Rules:
 |---|---|---|
 | Product mistaken for an accredited operator | Legal and reputational | Persistent synthetic/non-legal/non-operator disclaimer |
 | Overbuilding a TMS | Long delay | Strict MVP and stage gates |
-| Host reverse proxy misconfiguration | Cookie/protocol or routing errors | Dedicated Stage 16 proxy validation |
 | Invalid state mutation | Corrupted demo history | Named actions, guarded persistence and append-only events |
 | Frontend stale-response mismatch | Misleading UI | Request-version guards and selection invariant |
 | Reset/transition overlap | Mixed state | UI mutual exclusion and transactional backend operations |
 | Unbounded expired demo data | Database growth | Accepted Stage 15B bounded cleanup command |
-| External backup not configured | Operational recovery risk | Stage 16 backup storage/schedule/retention gate |
-| Production secrets mishandled | Security exposure | Provision outside Git during controlled deployment |
-| TLS/HSTS/firewall not configured | Public exposure risk | Dedicated Stage 16 host hardening |
-| Premature deployment | Operational risk and distraction | Production actions only inside controlled Stage 16 |
+| Backup exists only on VPS | Recovery risk after VPS loss | Maintain verified off-VPS recovery copies |
+| Production secrets mishandled | Security exposure | Keep `.env.production` outside Git with restricted permissions |
+| Neighbor project impact during VPS work | Cross-project outage | ETRN-only paths, port, Nginx site and targeted Docker operations |
+| Unreviewed live update | Production regression | Review/CI plus explicit release gate for each completed stage |
 
 ## 16. Current next step
 
-Stage 16 controlled deployment is active; repository pre-deployment gates Stage 16A and Stage 16B are accepted.
+Stage 16 Initial Production Launch and Stage 16C post-launch dependency security maintenance are accepted. The project now develops as a live public demo.
 
-It must implement only the host/runtime work actually required for public launch:
+Stage 17 begins with a focused product/technical audit before implementation. Evaluate and prioritize improvements across three directions:
 
-- production secret generation/provisioning outside Git;
-- VPS directory and ownership model;
-- deployment of the accepted production Compose baseline;
-- host Nginx reverse proxy to `127.0.0.1:8083`;
-- required forwarded headers, especially protocol handling for Secure-cookie/proxy correctness;
-- TLS/Certbot and HSTS decision;
-- firewall exposure;
-- external PostgreSQL backup storage, schedule and retention;
-- production restore procedure;
-- external health/smoke checks;
-- rollback boundary.
+- demo depth — richer synthetic workflow value without drifting into full TMS scope;
+- product UX — clearer first-visit understanding and a stronger 3–5 minute guided path;
+- commercial layer — clearer connection from the demo to StalarVision services and qualified inquiry.
 
-Do not automatically add analytics, authentication, RBAC, real integrations, product redesign or broad new functionality during deployment.
+Do not automatically add analytics, authentication, RBAC, real integrations, product redesign or broad new functionality without a separate stage decision.
 
-Production deployment remains separately gated and must not be performed implicitly from repository-only work.
+Future accepted stages follow:
+
+```text
+plan
+→ implementation
+→ review/CI
+→ accepted stage
+→ controlled production release
+→ external smoke
+→ production acceptance
+```
