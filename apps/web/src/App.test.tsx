@@ -112,6 +112,13 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /DEMO-001/i })).toHaveAttribute("aria-current", "true");
     expect(screen.getByText("Основной путь перевозки")).toBeInTheDocument();
     expect(screen.getByText("Отклонение и восстановление")).toBeInTheDocument();
+    const snapshot = getOperationalSnapshot();
+    expect(snapshot.getByText("Всего перевозок")).toBeInTheDocument();
+    expect(snapshot.getByText("Требуют внимания")).toBeInTheDocument();
+    expect(snapshot.getByText("Завершены")).toBeInTheDocument();
+    expectSnapshotMetric(snapshot, "Всего перевозок", "2");
+    expectSnapshotMetric(snapshot, "Требуют внимания", "0");
+    expectSnapshotMetric(snapshot, "Завершены", "0");
 
     const guidedDemo = getGuidedDemoPanel();
     expect(guidedDemo.getByText(/прибытие автомобиля/iu)).toBeInTheDocument();
@@ -345,6 +352,7 @@ describe("App", () => {
 
     await screen.findByRole("button", { name: /DEMO-001/i });
     expect(screen.getByText("Завершённый пример")).toBeInTheDocument();
+    expectSnapshotMetric(getOperationalSnapshot(), "Завершены", "1");
     fireEvent.click(screen.getByRole("button", { name: /DEMO-003/i }));
 
     const guidedDemo = getGuidedDemoPanel("DEMO-003");
@@ -420,12 +428,14 @@ describe("App", () => {
     const guidedDemo = getGuidedDemoPanel("DEMO-002");
     expect(await guidedDemo.findByText(/Сообщить о проблеме/iu)).toBeInTheDocument();
     expect(guidedDemo.getByText(/обработку отклонения/iu)).toBeInTheDocument();
+    expectSnapshotMetric(getOperationalSnapshot(), "Требуют внимания", "0");
     expect(screen.getByRole("button", { name: /Сообщить о проблеме/i })).toBeInTheDocument();
     expect(screen.getAllByText(/Водитель/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /Сообщить о проблеме/i }));
 
     expect((await screen.findAllByText("Требует внимания")).length).toBeGreaterThan(0);
+    expectSnapshotMetric(getOperationalSnapshot(), "Требуют внимания", "1");
     expect(await guidedDemo.findByText(/Проблема уже зафиксирована/iu)).toBeInTheDocument();
     expect(guidedDemo.getByText(/Подтвердить решение проблемы/iu)).toBeInTheDocument();
     expect(guidedDemo.getByText(/вернуть перевозку в обычный процесс/iu)).toBeInTheDocument();
@@ -437,6 +447,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Подтвердить решение проблемы/i }));
 
     expect((await screen.findAllByText("В пути")).length).toBeGreaterThan(0);
+    expectSnapshotMetric(getOperationalSnapshot(), "Требуют внимания", "0");
     expect(await guidedDemo.findByText(/Сообщить о проблеме/iu)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Подтвердить прибытие к разгрузке/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Проблема обработана" })).toBeInTheDocument();
@@ -1146,6 +1157,28 @@ function getGuidedDemoPanel(reference = "DEMO-001") {
   }
 
   return within(guidedSection);
+}
+
+function getOperationalSnapshot() {
+  const snapshotHeading = screen.getByRole("heading", { name: "Текущее состояние демо" });
+  const snapshotSection = snapshotHeading.closest("section");
+
+  if (!snapshotSection) {
+    throw new Error("Operational snapshot section was not rendered.");
+  }
+
+  return within(snapshotSection);
+}
+
+function expectSnapshotMetric(snapshot: ReturnType<typeof within>, label: string, value: string) {
+  const labelElement = snapshot.getByText(label);
+  const metricItem = labelElement.closest(".operational-snapshot-item");
+
+  if (!metricItem) {
+    throw new Error(`Operational snapshot metric was not rendered: ${label}`);
+  }
+
+  expect(within(metricItem).getByText(value)).toBeInTheDocument();
 }
 
 function shipmentSummary(overrides: Partial<ShipmentDetailResponse["shipment"]> = {}) {
