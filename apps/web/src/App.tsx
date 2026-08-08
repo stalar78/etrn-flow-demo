@@ -15,6 +15,7 @@ import {
   type ShipmentWorkflowAction
 } from "./api/etrn-flow-api";
 import { AppHeader } from "./components/AppHeader";
+import { CommercialNextStep } from "./components/CommercialNextStep";
 import { DemoResetControl } from "./components/DemoResetControl";
 import { EventTimeline } from "./components/EventTimeline";
 import { GuidedDemoPath } from "./components/GuidedDemoPath";
@@ -373,6 +374,8 @@ export function App() {
             </div>
           </div>
         ) : null}
+
+        {phase !== "fatal_initialization_error" ? <CommercialNextStep /> : null}
       </main>
     </div>
   );

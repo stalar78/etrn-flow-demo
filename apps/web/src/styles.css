@@ -261,12 +261,6 @@ h3 {
   font-size: 0.92rem;
 }
 
-.intro-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
 .primary-link {
   display: inline-flex;
   align-items: center;
@@ -304,6 +298,61 @@ h3 {
   grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
+}
+
+.commercial-next-step {
+  display: grid;
+  gap: var(--space-3);
+  padding: clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: rgb(255 253 248 / 86%);
+  box-shadow: var(--shadow-panel);
+}
+
+.commercial-next-step-copy {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 58rem;
+}
+
+.commercial-next-step h2,
+.commercial-next-step h3,
+.commercial-next-step p {
+  margin-bottom: 0;
+}
+
+.commercial-next-step-copy p:not(.eyebrow),
+.commercial-next-step-list p {
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.commercial-next-step-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commercial-next-step-list li {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #faf7f0;
+}
+
+.commercial-next-step-list h3 {
+  color: var(--color-accent-strong);
+  font-size: 1rem;
+}
+
+.commercial-next-step-cta {
+  width: fit-content;
 }
 
 .detail-column {
@@ -672,6 +721,7 @@ dd {
 @media (max-width: 860px) {
   .app-header,
   .product-intro,
+  .commercial-next-step-list,
   .workspace-grid {
     grid-template-columns: 1fr;
   }
@@ -693,6 +743,7 @@ dd {
 
   .detail-grid,
   .capability-list,
+  .commercial-next-step-list,
   .progress-steps,
   .guided-demo-steps,
   .timeline-item {
