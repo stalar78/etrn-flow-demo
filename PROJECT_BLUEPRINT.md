@@ -4,27 +4,30 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stages 03–15D, Stage 16A–16C and Stage 16 Initial Production Launch accepted; Stage 17A–17D accepted and deployed; Stage 18A UX Scenario Orientation & Discoverability accepted and deployed
+- Current stage: Stages 03–15D, Stage 16A–16C and Stage 16 Initial Production Launch accepted; Stage 17A–17D accepted and deployed; Stage 18A UX Scenario Orientation & Discoverability accepted and deployed; Stage 18B.1 Operational Snapshot accepted and deployed
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Production demo: `https://etrn.stalarvision.ru`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
-- Latest accepted product-code merge commit: `79491515f3e97222e1343023ae8bab83e86e6935` (Stage 18A.2)
-- Current repository/production checkout baseline: `79491515f3e97222e1343023ae8bab83e86e6935` (`feat: clarify prepared demo scenarios (#35)`)
+- Latest accepted product-code merge commit: `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22` (Stage 18B.1)
+- Current repository/production checkout baseline: `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22` (`feat: add operational demo snapshot (#37)`)
 - Stage 17A accepted merge commit: `43ea64c64e9f2daccdf33f477283c27b4fcad25b`
 - Stage 17B accepted merge commit: `30aa5edb39b773f558a9f651e73e25aee72e9211`
 - Stage 17C accepted merge commit: `e1224a823c409749b29ec925aa5245e09c5dfd67`
 - Stage 17D accepted merge commit: `2bc824144674d885a6619f8ec7e596b74e81ffd3`
 - Stage 18A.1 accepted merge commit: `cf0f6b607a91269d4c87069536cccebd5905849f`
 - Stage 18A.2 accepted merge commit: `79491515f3e97222e1343023ae8bab83e86e6935`
+- Stage 18B.1 accepted merge commit: `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`
 - Latest accepted Stage 17D product-code CI: run #87, successful
 - Stage 18A.1 CI: run #95, successful
-- Latest repository/product-code CI: run #97, successful
+- Stage 18A.2 CI: run #97, successful
+- Latest repository/product-code CI: run #101, successful
 - Stage 15D: evidence-only local release rehearsal; no repository implementation changes
 - Stage 16: evidence-only controlled VPS deployment on the accepted repository baseline
 - Stage 16C + Stage 17A–17D controlled production release: accepted on 2026-08-08 after external smoke
 - Stage 18A web-only production update: accepted on 2026-08-08 after health and bundle smoke
-- Public deployment status: live and confirmed on the accepted Stage 18A behavior
+- Stage 18B.1 web-only production update: accepted on 2026-08-08 after web health, public health and bundle smoke
+- Public deployment status: live and confirmed on the accepted Stage 18B.1 behavior
 
 ## 2. Purpose
 
@@ -83,6 +86,8 @@ ETRN Flow — публичная интерактивная демонстрац
 - scenario-aware guided titles for prepared examples;
 - explicit `DEMO-002` attention/recovery guidance;
 - scenario descriptors in the shipment list for `DEMO-001`, `DEMO-002`, `DEMO-003`;
+- compact operational snapshot derived from the already loaded shipment list;
+- snapshot counts limited to total shipments, `attention_required` and `completed`;
 - журнал событий;
 - контролируемый reset/restart демо-сценария;
 - browser-level happy path through `completed`;
@@ -105,8 +110,10 @@ ETRN Flow — публичная интерактивная демонстрац
 - favicon validation with clean CI #91;
 - Stage 18A.1 full validation with clean CI #95;
 - Stage 18A.2 full validation with clean CI #97;
+- Stage 18B.1 full validation with clean CI #101;
 - accepted 2026-08-08 production release of Stage 16C + Stage 17A–17D with external smoke;
-- accepted 2026-08-08 Stage 18A web-only production update with health and bundle smoke.
+- accepted 2026-08-08 Stage 18A web-only production update with health and bundle smoke;
+- accepted 2026-08-08 Stage 18B.1 web-only production update with health and bundle smoke.
 
 Не входят:
 
@@ -152,7 +159,8 @@ Merged/accepted:
 - Stage 17D — Commercial Conversion Layer;
 - post-Stage-17 UI maintenance — StalarVision browser favicon, PR #32;
 - Stage 18A.1 — Scenario Orientation Polish, PR #34;
-- Stage 18A.2 — Scenario Discoverability in Shipment List, PR #35.
+- Stage 18A.2 — Scenario Discoverability in Shipment List, PR #35;
+- Stage 18B.1 — Operational Snapshot, PR #37.
 
 Accepted merge commits:
 
@@ -170,7 +178,8 @@ Accepted merge commits:
 - Stage 17D: `2bc824144674d885a6619f8ec7e596b74e81ffd3`;
 - favicon update: `90a8f81867f6bf1c0d6190ee91176e7b81793d25`;
 - Stage 18A.1: `cf0f6b607a91269d4c87069536cccebd5905849f`;
-- Stage 18A.2: `79491515f3e97222e1343023ae8bab83e86e6935`.
+- Stage 18A.2: `79491515f3e97222e1343023ae8bab83e86e6935`;
+- Stage 18B.1: `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`.
 
 Stage 15D, Stage 16 and the 2026-08-08 production release checkpoints required no new domain/application feature merge beyond their referenced accepted repository baselines.
 
@@ -268,6 +277,9 @@ Additional limits:
   - `DEMO-002` → `Отклонение и восстановление`;
   - `DEMO-003` → `Завершённый пример`;
 - unknown shipment references do not receive invented descriptors;
+- `OperationalSnapshot` rendered from the existing `shipments` array without separate client state or additional API requests;
+- snapshot metrics are limited to `Всего перевозок`, `Требуют внимания` (`attention_required`) and `Завершены` (`completed`);
+- snapshot automatically reflects the existing transition/reset refresh flow through `setShipments(...)`;
 - Russian labels for states, roles, actions and events;
 - ordered event timeline;
 - state-driven action availability;
@@ -309,6 +321,7 @@ Accepted browser coverage:
 - timeline verification;
 - reset;
 - deterministic restoration;
+- operational snapshot initial counts, completed count and `DEMO-002` attention/recovery `0 → 1 → 0` regression coverage;
 - first-visit product heading, updated instruction, disclaimer and commercial CTA assertions.
 
 Accepted GitHub CI jobs:
@@ -345,7 +358,7 @@ Accepted GitHub CI jobs:
 - exact host-port exposure assertion;
 - cleanup.
 
-Latest Stage 17D product-code CI: run #87, successful. Stage 18A.1 CI #95 and Stage 18A.2 CI #97 both passed `Checks`, `Security scan` and `Production stack`. Latest accepted repository/product-code CI is run #97.
+Latest Stage 17D product-code CI: run #87, successful. Stage 18A.1 CI #95, Stage 18A.2 CI #97 and Stage 18B.1 CI #101 passed `Checks`, `Security scan` and `Production stack`. Latest accepted repository/product-code CI is run #101.
 
 ## 10. Production baseline
 
@@ -397,11 +410,17 @@ Accepted implementation and deployment:
 - final `etrn-flow-prod-web` health was `healthy`;
 - production bundle `/assets/index-DjBp550v.js` contained all three prepared-scenario descriptors and the updated `DEMO-002` guided copy;
 - public `/health` remained successful after Stage 18A;
-- API, PostgreSQL, host Nginx, Certbot and neighboring projects were untouched by the Stage 18A deployment.
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were untouched by the Stage 18A deployment;
+- Stage 18B.1 web-only update advanced checkout to `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`;
+- only the web image/container was rebuilt/recreated for Stage 18B.1 with `--no-deps`;
+- final `etrn-flow-prod-web` health reached `healthy`;
+- production bundle `/assets/index-CfgD7lDU.js` contained `Текущее состояние демо`, `Всего перевозок`, `Требуют внимания` and `Завершены`;
+- public `/health` remained successful after Stage 18B.1;
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not modified by the Stage 18B.1 deployment.
 
 Detailed operational paths and recovery/release rules are documented in [`docs/PRODUCTION_OPERATIONS.md`](docs/PRODUCTION_OPERATIONS.md).
 
-Production is therefore confirmed on the accepted Stage 18A feature baseline.
+Production is therefore confirmed on the accepted Stage 18B.1 feature baseline.
 
 ## 11. Architecture overview
 
@@ -511,6 +530,7 @@ selectedShipmentId === detail.shipment.id
 - PR #32 CI #91 validates the favicon maintenance checkout.
 - Stage 18A.1 CI #95 validates scenario-orientation changes through the same accepted gates.
 - Stage 18A.2 CI #97 validates scenario discoverability through the same accepted gates.
+- Stage 18B.1 CI #101 validates the operational snapshot through the same accepted gates.
 - Production updates remain manual and explicitly gated.
 
 ### Stage 15D accepted rehearsal evidence
@@ -533,7 +553,7 @@ selectedShipmentId === detail.shipment.id
 - production secrets were provisioned outside Git;
 - production Compose validation passed;
 - migrations completed successfully;
-- `postgres`, `api` and `web` reached healthy state;
+- `postgres`, `api`, `web` reached healthy state;
 - host Nginx routing and `X-Forwarded-Proto` path were accepted;
 - DNS resolved to the production VPS;
 - Certbot TLS issuance and auto-renew dry-run passed;
@@ -619,6 +639,22 @@ selectedShipmentId === detail.shipment.id
 - final public `/health` remained successful;
 - API, PostgreSQL, host Nginx, Certbot and neighboring projects were untouched.
 
+### Stage 18B.1 accepted evidence
+
+- Stage 18B.1 added `OperationalSnapshot`, derived only from the existing frontend `shipments` array;
+- the snapshot exposes only authoritative counts: total shipments, `attention_required` and `completed`;
+- no separate client state, additional API requests, analytics, charts or fictional business metrics were introduced;
+- component integration uses the existing transition/reset `setShipments(...)` refresh path;
+- tests cover the initial snapshot, completed count and `DEMO-002` attention/recovery count sequence `0 → 1 → 0`;
+- PR #37 squash merge `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22` passed CI #101;
+- the implementation is frontend-only and did not change backend, API, domain, schema, dependencies, Docker/Compose, Nginx, workflow, seed or quotas;
+- production checkout advanced to `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22` through a web-only update;
+- only `etrn-flow-prod-web` was rebuilt/recreated with `--no-deps`;
+- final web health reached `healthy`;
+- production bundle `/assets/index-CfgD7lDU.js` contained the operational snapshot heading and all three metric labels;
+- final public `/health` remained successful;
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not modified.
+
 Rate limiting is guest-session based, not client-IP based. Host proxy configuration preserves protocol semantics, but IP-based abuse-control semantics are not part of the accepted application baseline.
 
 ## 14. AI-agent workflow
@@ -654,11 +690,11 @@ Rules:
 
 ## 16. Current next step
 
-Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario, Stage 17D Commercial Conversion Layer and Stage 18A UX Scenario Orientation & Discoverability are accepted and deployed. The production demo also includes the StalarVision favicon maintenance update.
+Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario, Stage 17D Commercial Conversion Layer, Stage 18A UX Scenario Orientation & Discoverability and Stage 18B.1 Operational Snapshot are accepted and deployed. The production demo also includes the StalarVision favicon maintenance update.
 
-The Stage 18A documentation sync records the accepted repository, CI and production evidence. No feature stage is currently active.
+The Stage 18B.1 documentation sync records the accepted repository, CI and production evidence. No feature stage is currently active.
 
-The next product increment, if justified, should be selected only after reviewing the live demo, operational state and available evidence in the absence of real-customer feedback. Do not automatically add analytics, authentication, RBAC, real integrations, product redesign or broad new functionality without a separate stage decision.
+The next product increment, if justified, should be selected only after reviewing the live demo, operational state and available evidence in the absence of real-customer feedback. Do not automatically add analytics, authentication, RBAC, real integrations, product redesign, a larger dashboard or broad new functionality without a separate stage decision.
 
 Future accepted stages follow:
 
