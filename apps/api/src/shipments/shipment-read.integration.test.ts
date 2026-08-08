@@ -1533,7 +1533,7 @@ function createTestApp(options: {
 function abuseConfig(overrides: Partial<NonNullable<AppOptions["abuseControlConfig"]>> = {}) {
   return {
     mutationLimit: 60,
-    rateMaxRequests: 6,
+    rateMaxRequests: 8,
     rateWindowSeconds: 10,
     resetLimit: 8,
     ...overrides

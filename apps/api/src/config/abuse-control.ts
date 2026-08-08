@@ -4,7 +4,7 @@ const abuseControlConfigSchema = z.object({
   GUEST_SESSION_MUTATION_LIMIT: z.coerce.number().int().positive().max(100000).default(60),
   GUEST_SESSION_RESET_LIMIT: z.coerce.number().int().positive().max(100000).default(8),
   GUEST_SESSION_RATE_WINDOW_SECONDS: z.coerce.number().int().positive().max(86400).default(10),
-  GUEST_SESSION_RATE_MAX_REQUESTS: z.coerce.number().int().positive().max(10000).default(6)
+  GUEST_SESSION_RATE_MAX_REQUESTS: z.coerce.number().int().positive().max(10000).default(8)
 });
 
 export type AbuseControlConfig = {
