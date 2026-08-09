@@ -269,13 +269,53 @@ Production evidence:
 
 This release is accepted. Stage 18C.1 is therefore deployed in production.
 
-Current production checkout baseline after Stage 18C.1:
+## Stage 18C.2 Transition Feedback Clarity production update — 2026-08-09
+
+Stage 18C.2 was released after repository acceptance as a separate frontend-only update.
+
+Repository evidence:
+
+- PR #41: `feat: clarify workflow transition feedback`;
+- accepted squash merge: `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`;
+- product PR head before merge: `16f8dd4982a3b578ed0094d1134c2e405275df00`;
+- CI #110 passed `Checks`, `Security scan` and `Production stack`, including Chromium E2E;
+- product changes are limited to `apps/web/src/App.tsx` and `apps/web/src/App.test.tsx`;
+- success feedback now uses the existing `actionLabels` and `shipmentStateLabels` in the form `«<Название действия>» выполнено. Новый статус: «<Статус>».`;
+- the success status is taken from the refreshed authoritative shipment data returned by the existing refresh flow;
+- no additional API request was introduced;
+- stale/mismatched detail is not allowed to drive a concrete success status;
+- if the transitioned shipment cannot safely be found after refresh, the existing `shipment_detail_unavailable` recoverable-error path is used instead of a false success message;
+- no backend, API contract, domain, schema, dependency, Docker/Compose, Nginx or production configuration changed.
+
+Production evidence:
+
+- pre-update production checkout was `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`;
+- VPS checkout advanced to `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`;
+- only the `web` image was rebuilt;
+- only `etrn-flow-prod-web` was force-recreated with `--no-deps`;
+- final `etrn-flow-prod-web` health was `healthy`;
+- exact host binding remained `127.0.0.1:8083:8080`;
+- public `/health` returned `{"status":"ok","service":"etrn-flow-api"}`;
+- production bundle observed after deployment: `/assets/index-D2vGR1sq.js`;
+- production bundle contained `Новый статус`;
+- production bundle contained `Подтвердить прибытие автомобиля`;
+- production bundle contained `Сообщить о проблеме`;
+- production bundle contained `Подтвердить решение проблемы`;
+- production bundle contained `Отменить перевозку`;
+- API and PostgreSQL were not rebuilt or restarted;
+- migrations were not required;
+- host Nginx and Certbot were not modified;
+- neighboring projects were not modified.
+
+This release is accepted. Stage 18C.2 is therefore deployed in production.
+
+Current production checkout baseline after Stage 18C.2:
 
 ```text
-b741db2aa957a7996c13dfcf480c4aa9fce7a35c
+09e7bed392ae57f8cb3f505595daef97b3f2b9e3
 ```
 
-The current latest accepted product-code baseline is Stage 18C.1 merge `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`.
+The current latest accepted product-code baseline is Stage 18C.2 merge `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`.
 
 ## Backups on the VPS
 
@@ -373,7 +413,7 @@ The first post-launch repository security maintenance was accepted as Stage 16C:
 - `vite` and `@vitejs/plugin-react` are `devDependencies`;
 - Stage 16C did not change application logic, API, schema, Docker/Compose, Nginx, production ports or VPS configuration.
 
-Stage 16C is deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D. Stage 18A, Stage 18B.1 and Stage 18C.1 are deployed as later web-only updates.
+Stage 16C is deployed as part of the accepted 2026-08-08 controlled production release together with Stage 17A–17D. Stage 18A, Stage 18B.1, Stage 18C.1 and Stage 18C.2 are deployed as later web-only updates.
 
 ## Isolation rules
 
