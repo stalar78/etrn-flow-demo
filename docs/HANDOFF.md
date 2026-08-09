@@ -3,7 +3,7 @@
 ## Current state
 
 - Private GitHub repository: `stalar78/etrn-flow-demo`.
-- Stages 03–15D, Stage 16A–16C, Stage 16 Initial Production Launch, Stage 17A–17D, Stage 18A, Stage 18B.1 and Stage 18C.1 are accepted.
+- Stages 03–15D, Stage 16A–16C, Stage 16 Initial Production Launch, Stage 17A–17D, Stage 18A, Stage 18B.1, Stage 18C.1 and Stage 18C.2 are accepted.
 - Stage 12B accepted merge commit: `a1e829ebbd695abc19078362d33a04ffd2b68c15`.
 - Stage 13A accepted merge commit: `1a01396c63fe8523058aa938f47d8f7bc7cd3132`.
 - Stage 14B accepted merge commit: `71a586aab08044c42b8c07f68e0a02cd2529e2e3`.
@@ -26,14 +26,16 @@
 - Stage 18B.1 web-only production update was accepted on 2026-08-08 after web health, public health and production bundle smoke.
 - Stage 18C.1 First-Visit Orientation accepted merge commit: `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`; CI #106 is successful.
 - Stage 18C.1 web-only production update was accepted on 2026-08-08 after web health, public health and production bundle smoke.
-- Public production demo is live at `https://etrn.stalarvision.ru` and exposes the accepted Stage 18C.1 behavior.
-- Current production/repository checkout baseline: `b741db2aa957a7996c13dfcf480c4aa9fce7a35c` (`feat: improve first-visit demo orientation (#39)`).
+- Stage 18C.2 Transition Feedback Clarity accepted merge commit: `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`; CI #110 is successful.
+- Stage 18C.2 web-only production update was accepted on 2026-08-09 after web health, public health and production bundle smoke.
+- Public production demo is live at `https://etrn.stalarvision.ru` and exposes the accepted Stage 18C.2 behavior.
+- Current production/repository checkout baseline: `09e7bed392ae57f8cb3f505595daef97b3f2b9e3` (`feat: clarify workflow transition feedback (#41)`).
 - Initial production backup/restore and off-VPS recovery-copy verification passed.
 - Pre-release backup for the 2026-08-08 Stage 16C + Stage 17A–17D rollout: `/home/stanislav/backups/etrn-flow/etrn-flow-20260808T131846Z.dump`, observed size `28528` bytes, readable as a PostgreSQL custom archive.
 
 ## Current stage
 
-`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 16C post-launch dependency security accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted → controlled production release accepted → favicon maintenance accepted → Stage 18A UX Scenario Orientation & Discoverability accepted and deployed → Stage 18B.1 Operational Snapshot accepted and deployed → Stage 18C.1 First-Visit Orientation accepted and deployed → documentation sync`
+`Browser E2E accepted → Production container baseline accepted → Guided product presentation accepted → Guest-session lifecycle hardening accepted → Repository security hardening accepted → Local release rehearsal accepted → Stage 16A host-port isolation accepted → Stage 16B dev-tooling security maintenance accepted → Stage 16 Initial Production Launch accepted → Stage 16C post-launch dependency security accepted → Stage 17A Guided Demo Experience accepted → Stage 17B Complete Transport Lifecycle accepted → Stage 17C Managed Attention Scenario accepted → Stage 17D Commercial Conversion Layer accepted → controlled production release accepted → favicon maintenance accepted → Stage 18A UX Scenario Orientation & Discoverability accepted and deployed → Stage 18B.1 Operational Snapshot accepted and deployed → Stage 18C.1 First-Visit Orientation accepted and deployed → Stage 18C.2 Transition Feedback Clarity accepted and deployed → documentation sync`
 
 ## Product boundary
 
@@ -176,7 +178,7 @@ Operational lessons:
 - Reset of one session does not alter another session.
 - Reset restores `DEMO-001` to `awaiting_loading`, `DEMO-002` to `in_transit` and `DEMO-003` to `completed` with deterministic histories.
 
-### Frontend workflow — Stage 17A–18C.1
+### Frontend workflow — Stage 17A–18C.2
 
 - Russian operational workspace with same-origin typed API client.
 - Initialization remains health → session → bootstrap → list → deterministic selection → detail.
@@ -203,10 +205,14 @@ Operational lessons:
 - Snapshot metrics are limited to total shipments, `attention_required` and `completed`, and update through the existing transition/reset list refresh.
 - Stage 18C.1 replaces the dense intro instruction with a semantic `Как посмотреть демо` guide containing exactly three steps: start with `DEMO-001`, follow the available action, then inspect the changed state/snapshot/history.
 - Stage 18C.1 keeps `DEMO-002` as the attention/recovery example and `DEMO-003` as the completed example in secondary guide copy.
-- `OperationalSnapshot` now includes a concise explanation that the summary updates with shipments and represents the current demo session; metric logic remains unchanged.
+- `OperationalSnapshot` includes a concise explanation that the summary updates with shipments and represents the current demo session; metric logic remains unchanged.
 - Stage 18C.1 introduces no onboarding state, modal, route, storage, analytics or additional API request.
+- Stage 18C.2 replaces the generic transition-success notice with `«<Название действия>» выполнено. Новый статус: «<Статус>».` using existing `actionLabels` and `shipmentStateLabels`.
+- Stage 18C.2 builds success feedback from the refreshed authoritative `ShipmentSummary` for the transitioned shipment without an extra API request.
+- Mismatched/stale detail is not allowed to drive the success status; if the transitioned shipment cannot safely be found after refresh, the existing `shipment_detail_unavailable` recoverable-error path is used instead of a false concrete success message.
+- Stage 18C.2 component coverage includes `markVehicleArrived → Погрузка`, `reportAttention → Требует внимания`, `resolveAttention → В пути`, `cancel → Отменено` and the missing-refreshed-shipment safety path; the web test suite passed 42 tests.
 
-## Production deployment baseline — Stage 16 and accepted 2026-08-08 releases
+## Production deployment baseline — Stage 16 and accepted releases
 
 Accepted topology:
 
@@ -260,7 +266,12 @@ Accepted deployment evidence:
 - Stage 18C.1 final web health was `healthy`, with exact host binding still `127.0.0.1:8083:8080`;
 - production bundle `/assets/index-DzqLSAxt.js` contained all four first-visit guide markers plus the new snapshot explanatory copy;
 - public `/health` returned `{"status":"ok","service":"etrn-flow-api"}` after Stage 18C.1;
-- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not changed by the Stage 18C.1 release.
+- Stage 18C.2 web-only update advanced production checkout to `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`;
+- Stage 18C.2 rebuilt/recreated only `etrn-flow-prod-web` with `--no-deps`;
+- Stage 18C.2 final web health was `healthy`, with exact host binding still `127.0.0.1:8083:8080`;
+- production bundle `/assets/index-D2vGR1sq.js` contained `Новый статус`, `Подтвердить прибытие автомобиля`, `Сообщить о проблеме`, `Подтвердить решение проблемы` and `Отменить перевозку`;
+- public `/health` returned `{"status":"ok","service":"etrn-flow-api"}` after Stage 18C.2;
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not changed by the Stage 18C.2 release.
 
 Detailed operational paths, backup schedule, restore rules, release evidence and local recovery location are recorded in [`docs/PRODUCTION_OPERATIONS.md`](PRODUCTION_OPERATIONS.md).
 
@@ -356,6 +367,7 @@ Accepted coverage includes:
 - `DEMO-001`, `DEMO-002`, `DEMO-003` shipment-list descriptor assertions from Stage 18A.2;
 - operational snapshot initial values, completed count and `DEMO-002` attention/recovery `0 → 1 → 0` assertions from Stage 18B.1;
 - first-visit guide scoped assertions for `Как посмотреть демо`, all three guide steps and `DEMO-002`/`DEMO-003` secondary context from Stage 18C.1;
+- concrete transition-success assertions and stale-detail safety coverage from Stage 18C.2;
 - one Chromium E2E happy path through `completed` with reset, including the Stage 18C.1 guide entry assertions;
 - product intro, synthetic boundary, commercial next step and CTA assertions;
 - production Compose and same-origin stack smoke;
@@ -372,18 +384,20 @@ Accepted coverage includes:
 - Stage 18A.2 validation confirmed by CI #97;
 - Stage 18B.1 validation confirmed by CI #101;
 - Stage 18C.1 validation confirmed by CI #106;
+- Stage 18C.2 validation confirmed by CI #110;
 - Stage 16C + Stage 17A–17D external production release smoke accepted on 2026-08-08;
 - Stage 18A web-only production release health/bundle smoke accepted on 2026-08-08;
 - Stage 18B.1 web-only production release health/bundle smoke accepted on 2026-08-08;
-- Stage 18C.1 web-only production release health/bundle smoke accepted on 2026-08-08.
+- Stage 18C.1 web-only production release health/bundle smoke accepted on 2026-08-08;
+- Stage 18C.2 web-only production release health/bundle smoke accepted on 2026-08-09.
 
-Latest repository/product-code CI relevant to the current production checkout: run #106, successful. `Checks`, `Security scan` and `Production stack` all passed.
+Latest repository/product-code CI relevant to the current production checkout: run #110, successful. `Checks`, `Security scan` and `Production stack` all passed.
 
 ## Next controlled stage
 
-Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario, Stage 17D Commercial Conversion Layer, Stage 18A UX Scenario Orientation & Discoverability, Stage 18B.1 Operational Snapshot and Stage 18C.1 First-Visit Orientation are accepted and deployed in production.
+Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario, Stage 17D Commercial Conversion Layer, Stage 18A UX Scenario Orientation & Discoverability, Stage 18B.1 Operational Snapshot, Stage 18C.1 First-Visit Orientation and Stage 18C.2 Transition Feedback Clarity are accepted and deployed in production.
 
-The product now demonstrates a complete guided happy path, controlled exception/recovery, role-aware transitions, append-only history, scenario discoverability, a compact operational overview, explicit first-visit orientation and a clear commercial next step. The current controlled activity is documentation sync after the Stage 18C.1 production update.
+The product now demonstrates a complete guided happy path, controlled exception/recovery, role-aware transitions, append-only history, scenario discoverability, a compact operational overview, explicit first-visit orientation, concrete authoritative transition feedback and a clear commercial next step. The current controlled activity is documentation sync after the Stage 18C.2 production update.
 
 After this documentation sync, the next product stage, if any, should be selected only after reviewing the live demo, operational state and available evidence. There is no real-customer feedback yet, so the next increment must not invent user needs or business results or automatically expand the snapshot into a larger dashboard/onboarding system. Future completed stages still require review/CI and a separate release gate before updating the live production demo.
 
