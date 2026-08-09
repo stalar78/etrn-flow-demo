@@ -26,7 +26,7 @@ import { ShipmentDetail } from "./components/ShipmentDetail";
 import { ShipmentList } from "./components/ShipmentList";
 import { WorkflowActions } from "./components/WorkflowActions";
 import { WorkflowProgress } from "./components/WorkflowProgress";
-import { apiErrorMessages } from "./presentation/workflow-labels";
+import { actionLabels, apiErrorMessages, shipmentStateLabels } from "./presentation/workflow-labels";
 
 type WorkspacePhase =
   | "initializing"
@@ -142,7 +142,7 @@ export function App() {
     void initializeWorkspace();
   }, [initializeWorkspace]);
 
-  async function refreshWorkspace(shipmentId: string) {
+  async function refreshWorkspace(shipmentId: string): Promise<ShipmentSummary> {
     const requestId = detailRequestRef.current + 1;
     detailRequestRef.current = requestId;
     const [shipmentResponse, nextDetail] = await Promise.all([
@@ -152,13 +152,23 @@ export function App() {
 
     setShipments(shipmentResponse.shipments);
 
-    if (
+    const canApplyDetail =
       detailRequestRef.current === requestId
       && selectedShipmentIdRef.current === nextDetail.shipment.id
-      && shipmentId === nextDetail.shipment.id
-    ) {
+      && shipmentId === nextDetail.shipment.id;
+
+    if (canApplyDetail) {
       setDetail(nextDetail);
+      return nextDetail.shipment;
     }
+
+    const refreshedShipment = shipmentResponse.shipments.find((shipment) => shipment.id === shipmentId);
+
+    if (!refreshedShipment) {
+      throw new EtrnFlowApiError("shipment_detail_unavailable");
+    }
+
+    return refreshedShipment;
   }
 
   async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
@@ -212,11 +222,11 @@ export function App() {
 
     try {
       await executeShipmentAction(transitionShipmentId, input);
-      await refreshWorkspace(transitionShipmentId);
+      const refreshedShipment = await refreshWorkspace(transitionShipmentId);
       setPhase("ready");
       setMessage({
         tone: "success",
-        text: "Действие выполнено. Состояние и история обновлены."
+        text: `«${actionLabels[input.action]}» выполнено. Новый статус: «${shipmentStateLabels[refreshedShipment.state]}».`
       });
     } catch (error) {
       if (isAbortError(error)) {
