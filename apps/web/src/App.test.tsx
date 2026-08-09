@@ -278,7 +278,10 @@ describe("App", () => {
       listCall += 1;
 
       return {
-        shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state })]
+        shipments: [
+          shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+          shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state })
+        ]
       };
     });
     mockedApi.getShipmentDetail.mockImplementation(async () => {
@@ -322,10 +325,59 @@ describe("App", () => {
     expect(within(timelineItems[7]).getByText("#8")).toBeInTheDocument();
     const guidedDemo = getGuidedDemoPanel();
     expect(guidedDemo.getByText(/Сценарий завершён/iu)).toBeInTheDocument();
+    expect(guidedDemo.getByRole("button", { name: "Посмотреть DEMO-002" })).toBeInTheDocument();
     for (const guidedStep of guidedDemo.getAllByRole("listitem")) {
       expect(within(guidedStep).getByText("Пройдено")).toBeInTheDocument();
     }
     expect(screen.queryByRole("button", { name: /Подтвердить завершение перевозки/i })).not.toBeInTheDocument();
+  });
+
+  it("does not show the DEMO-002 handoff before DEMO-001 is completed", async () => {
+    render(<App />);
+
+    await screen.findByRole("button", { name: /DEMO-001/i });
+
+    expect(screen.queryByRole("button", { name: "Посмотреть DEMO-002" })).not.toBeInTheDocument();
+  });
+
+  it("selects DEMO-002 through the completion handoff without executing a workflow action", async () => {
+    mockedApi.listShipments.mockResolvedValue({
+      shipments: [
+        shipmentSummary({ id: "shipment-2", reference: "DEMO-002", state: "in_transit" }),
+        shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "completed" })
+      ]
+    });
+    mockedApi.getShipmentDetail
+      .mockResolvedValueOnce(detailFor("shipment-1", {
+        shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "completed" })
+      }))
+      .mockResolvedValueOnce(detailFor("shipment-2"));
+
+    render(<App />);
+
+    const handoffAction = await screen.findByRole("button", { name: "Посмотреть DEMO-002" });
+    fireEvent.click(handoffAction);
+
+    const guidedDemo = getGuidedDemoPanel("DEMO-002");
+    expect(await guidedDemo.findByText(/Сообщить о проблеме/iu)).toBeInTheDocument();
+    expect(guidedDemo.getByText(/обработку отклонения/iu)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /DEMO-002/i })).toHaveAttribute("aria-current", "true");
+    expect(mockedApi.getShipmentDetail).toHaveBeenLastCalledWith("shipment-2");
+    expect(mockedApi.executeShipmentAction).not.toHaveBeenCalled();
+  });
+
+  it("does not show the DEMO-002 handoff when DEMO-002 is unavailable", async () => {
+    mockedApi.listShipments.mockResolvedValueOnce({
+      shipments: [shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "completed" })]
+    });
+    mockedApi.getShipmentDetail.mockResolvedValueOnce(detailFor("shipment-1", {
+      shipment: shipmentSummary({ id: "shipment-1", reference: "DEMO-001", state: "completed" })
+    }));
+
+    render(<App />);
+
+    await screen.findByText("Сценарий завершён. История событий доступна ниже, демо можно сбросить в исходное состояние.");
+    expect(screen.queryByRole("button", { name: "Посмотреть DEMO-002" })).not.toBeInTheDocument();
   });
 
   it("shows a neutral guided note for prepared examples outside DEMO-001", async () => {

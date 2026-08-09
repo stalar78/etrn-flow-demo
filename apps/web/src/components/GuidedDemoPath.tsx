@@ -26,10 +26,11 @@ const statusLabels: Record<DemoStepStatus, string> = {
 };
 
 type GuidedDemoPathProps = {
+  onSelectDemo002?: () => void;
   shipment: ShipmentSummary | null;
 };
 
-export function GuidedDemoPath({ shipment }: GuidedDemoPathProps) {
+export function GuidedDemoPath({ onSelectDemo002, shipment }: GuidedDemoPathProps) {
   if (!shipment) {
     return (
       <section className="panel guided-demo-panel" aria-labelledby="guided-demo-title">
@@ -81,6 +82,17 @@ export function GuidedDemoPath({ shipment }: GuidedDemoPathProps) {
           </li>
         ))}
       </ol>
+      {shipment.state === "completed" && onSelectDemo002 ? (
+        <div className="guided-demo-handoff">
+          <p>
+            Основной путь завершён. Перейдите к DEMO-002, чтобы посмотреть обработку отклонения и возврат в обычный
+            процесс.
+          </p>
+          <button className="secondary-action guided-demo-handoff-action" onClick={onSelectDemo002} type="button">
+            Посмотреть DEMO-002
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

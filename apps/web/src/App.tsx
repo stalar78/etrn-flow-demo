@@ -309,6 +309,7 @@ export function App() {
   const selectedSummary = currentDetail?.shipment
     ?? shipments.find((shipment) => shipment.id === selectedShipmentId)
     ?? null;
+  const demo002Shipment = shipments.find((shipment) => shipment.reference === "DEMO-002") ?? null;
   const isListInteractionDisabled = phase === "initializing"
     || phase === "bootstrapping"
     || phase === "transitioning"
@@ -375,7 +376,10 @@ export function App() {
               />
               <ShipmentDetail isLoading={detailLoading} shipment={selectedSummary} />
               <WorkflowProgress state={selectedSummary?.state ?? null} />
-              <GuidedDemoPath shipment={selectedSummary} />
+              <GuidedDemoPath
+                onSelectDemo002={demo002Shipment ? () => void handleSelectShipment(demo002Shipment.id) : undefined}
+                shipment={selectedSummary}
+              />
               <WorkflowActions
                 confirmationAction={confirmationAction}
                 isTransitioning={phase === "transitioning" || phase === "resetting"}
