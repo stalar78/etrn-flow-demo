@@ -4,13 +4,13 @@
 
 - Project name: `ETRN Flow`
 - Owner: ИП Ларин Станислав Николаевич / StalarVision
-- Current stage: Stages 03–15D, Stage 16A–16C and Stage 16 Initial Production Launch accepted; Stage 17A–17D accepted and deployed; Stage 18A UX Scenario Orientation & Discoverability accepted and deployed; Stage 18B.1 Operational Snapshot accepted and deployed; Stage 18C.1 First-Visit Orientation accepted and deployed
+- Current stage: Stages 03–15D, Stage 16A–16C and Stage 16 Initial Production Launch accepted; Stage 17A–17D accepted and deployed; Stage 18A UX Scenario Orientation & Discoverability accepted and deployed; Stage 18B.1 Operational Snapshot accepted and deployed; Stage 18C.1 First-Visit Orientation accepted and deployed; Stage 18C.2 Transition Feedback Clarity accepted and deployed
 - Repository: `https://github.com/stalar78/etrn-flow-demo`
 - Production demo: `https://etrn.stalarvision.ru`
 - Architecture: modular monolith in a single workspace repository
 - Accepted stack: React + TypeScript + Vite; Node.js + TypeScript + Fastify; PostgreSQL; Drizzle ORM; Zod; Docker Compose; Nginx
-- Latest accepted product-code merge commit: `b741db2aa957a7996c13dfcf480c4aa9fce7a35c` (Stage 18C.1)
-- Current repository/production checkout baseline: `b741db2aa957a7996c13dfcf480c4aa9fce7a35c` (`feat: improve first-visit demo orientation (#39)`)
+- Latest accepted product-code merge commit: `09e7bed392ae57f8cb3f505595daef97b3f2b9e3` (Stage 18C.2)
+- Current repository/production checkout baseline: `09e7bed392ae57f8cb3f505595daef97b3f2b9e3` (`feat: clarify workflow transition feedback (#41)`)
 - Stage 17A accepted merge commit: `43ea64c64e9f2daccdf33f477283c27b4fcad25b`
 - Stage 17B accepted merge commit: `30aa5edb39b773f558a9f651e73e25aee72e9211`
 - Stage 17C accepted merge commit: `e1224a823c409749b29ec925aa5245e09c5dfd67`
@@ -19,18 +19,21 @@
 - Stage 18A.2 accepted merge commit: `79491515f3e97222e1343023ae8bab83e86e6935`
 - Stage 18B.1 accepted merge commit: `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`
 - Stage 18C.1 accepted merge commit: `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`
+- Stage 18C.2 accepted merge commit: `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`
 - Latest accepted Stage 17D product-code CI: run #87, successful
 - Stage 18A.1 CI: run #95, successful
 - Stage 18A.2 CI: run #97, successful
 - Stage 18B.1 CI: run #101, successful
-- Latest repository/product-code CI: run #106, successful
+- Stage 18C.1 CI: run #106, successful
+- Latest repository/product-code CI: run #110, successful
 - Stage 15D: evidence-only local release rehearsal; no repository implementation changes
 - Stage 16: evidence-only controlled VPS deployment on the accepted repository baseline
 - Stage 16C + Stage 17A–17D controlled production release: accepted on 2026-08-08 after external smoke
 - Stage 18A web-only production update: accepted on 2026-08-08 after health and bundle smoke
 - Stage 18B.1 web-only production update: accepted on 2026-08-08 after web health, public health and bundle smoke
 - Stage 18C.1 web-only production update: accepted on 2026-08-08 after web health, public health and first-visit bundle smoke
-- Public deployment status: live and confirmed on the accepted Stage 18C.1 behavior
+- Stage 18C.2 web-only production update: accepted on 2026-08-09 after web health, public health and transition-feedback bundle smoke
+- Public deployment status: live and confirmed on the accepted Stage 18C.2 behavior
 
 ## 2. Purpose
 
@@ -94,6 +97,8 @@ ETRN Flow — публичная интерактивная демонстрац
 - semantic first-visit guide `Как посмотреть демо` with three compact steps;
 - first-visit secondary context for `DEMO-002` and `DEMO-003`;
 - concise explanatory copy for the operational snapshot without analytics/KPI semantics;
+- concrete workflow transition success feedback using existing action/state labels and refreshed authoritative shipment state;
+- stale/mismatched-detail protection for transition feedback with controlled recoverable fallback;
 - журнал событий;
 - контролируемый reset/restart демо-сценария;
 - browser-level happy path through `completed`;
@@ -118,10 +123,12 @@ ETRN Flow — публичная интерактивная демонстрац
 - Stage 18A.2 full validation with clean CI #97;
 - Stage 18B.1 full validation with clean CI #101;
 - Stage 18C.1 full validation with clean CI #106;
+- Stage 18C.2 full validation with clean CI #110;
 - accepted 2026-08-08 production release of Stage 16C + Stage 17A–17D with external smoke;
 - accepted 2026-08-08 Stage 18A web-only production update with health and bundle smoke;
 - accepted 2026-08-08 Stage 18B.1 web-only production update with health and bundle smoke;
-- accepted 2026-08-08 Stage 18C.1 web-only production update with health and first-visit bundle smoke.
+- accepted 2026-08-08 Stage 18C.1 web-only production update with health and first-visit bundle smoke;
+- accepted 2026-08-09 Stage 18C.2 web-only production update with health and transition-feedback bundle smoke.
 
 Не входят:
 
@@ -169,7 +176,8 @@ Merged/accepted:
 - Stage 18A.1 — Scenario Orientation Polish, PR #34;
 - Stage 18A.2 — Scenario Discoverability in Shipment List, PR #35;
 - Stage 18B.1 — Operational Snapshot, PR #37;
-- Stage 18C.1 — First-Visit Orientation, PR #39.
+- Stage 18C.1 — First-Visit Orientation, PR #39;
+- Stage 18C.2 — Transition Feedback Clarity, PR #41.
 
 Accepted merge commits:
 
@@ -189,9 +197,10 @@ Accepted merge commits:
 - Stage 18A.1: `cf0f6b607a91269d4c87069536cccebd5905849f`;
 - Stage 18A.2: `79491515f3e97222e1343023ae8bab83e86e6935`;
 - Stage 18B.1: `854c2ac22cdd24e3dd8a8c3e95fb781f35b96c22`;
-- Stage 18C.1: `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`.
+- Stage 18C.1: `b741db2aa957a7996c13dfcf480c4aa9fce7a35c`;
+- Stage 18C.2: `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`.
 
-Stage 15D, Stage 16 and the 2026-08-08 production release checkpoints required no new domain/application feature merge beyond their referenced accepted repository baselines.
+Stage 15D, Stage 16 and the production release checkpoints required no new domain/application feature merge beyond their referenced accepted repository baselines.
 
 ## 7. Current backend capabilities
 
@@ -312,6 +321,9 @@ Additional limits:
 - reset confirmation, mutual exclusion and double-submit protection;
 - atomic post-reset snapshot application;
 - stale-request protection and controlled recovery;
+- transition-success notice uses `«<Название действия>» выполнено. Новый статус: «<Статус>».` with existing `actionLabels` and `shipmentStateLabels`;
+- transition feedback uses the refreshed authoritative `ShipmentSummary` without additional API calls;
+- stale/mismatched detail cannot drive transition success status, and a missing transitioned shipment uses the existing controlled recoverable-error path;
 - persistent synthetic-data boundary;
 - compact `ProductIntro` above the workspace;
 - one page-level `h1`;
@@ -375,7 +387,7 @@ Accepted GitHub CI jobs:
 - exact host-port exposure assertion;
 - cleanup.
 
-Latest Stage 17D product-code CI: run #87, successful. Stage 18A.1 CI #95, Stage 18A.2 CI #97, Stage 18B.1 CI #101 and Stage 18C.1 CI #106 passed `Checks`, `Security scan` and `Production stack`. Latest accepted repository/product-code CI is run #106.
+Latest Stage 17D product-code CI: run #87, successful. Stage 18A.1 CI #95, Stage 18A.2 CI #97, Stage 18B.1 CI #101, Stage 18C.1 CI #106 and Stage 18C.2 CI #110 passed `Checks`, `Security scan` and `Production stack`. Latest accepted repository/product-code CI is run #110.
 
 ## 10. Production baseline
 
@@ -439,11 +451,17 @@ Accepted implementation and deployment:
 - final `etrn-flow-prod-web` health was `healthy` and binding remained `127.0.0.1:8083:8080`;
 - production bundle `/assets/index-DzqLSAxt.js` contained `Как посмотреть демо`, `Начните с DEMO-001`, `Следуйте доступному действию`, `Посмотрите, что изменилось` and the snapshot explanatory copy beginning `Сводка обновляется вместе с перевозками`;
 - public `/health` returned `{"status":"ok","service":"etrn-flow-api"}` after Stage 18C.1;
-- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not modified by the Stage 18C.1 deployment.
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not modified by the Stage 18C.1 deployment;
+- Stage 18C.2 web-only update advanced checkout to `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`;
+- only the web image/container was rebuilt/recreated for Stage 18C.2 with `--no-deps`;
+- final `etrn-flow-prod-web` health was `healthy` and binding remained `127.0.0.1:8083:8080`;
+- production bundle `/assets/index-D2vGR1sq.js` contained `Новый статус`, `Подтвердить прибытие автомобиля`, `Сообщить о проблеме`, `Подтвердить решение проблемы` and `Отменить перевозку`;
+- public `/health` returned `{"status":"ok","service":"etrn-flow-api"}` after Stage 18C.2;
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not modified by the Stage 18C.2 deployment.
 
 Detailed operational paths and recovery/release rules are documented in [`docs/PRODUCTION_OPERATIONS.md`](docs/PRODUCTION_OPERATIONS.md).
 
-Production is therefore confirmed on the accepted Stage 18C.1 feature baseline.
+Production is therefore confirmed on the accepted Stage 18C.2 feature baseline.
 
 ## 11. Architecture overview
 
@@ -529,6 +547,18 @@ When detail is displayed:
 selectedShipmentId === detail.shipment.id
 ```
 
+Transition success feedback must follow:
+
+```text
+successful named action
+→ existing workspace refresh
+→ authoritative refreshed ShipmentSummary for the same shipmentId
+→ existing action/state presentation labels
+→ concrete success notice
+```
+
+Mismatched/stale detail must never provide the success status. If the transitioned shipment cannot be safely resolved after refresh, use the existing controlled recoverable-error path instead of a false success message.
+
 ## 13. Security and release-readiness model
 
 - Synthetic demo data only.
@@ -555,6 +585,7 @@ selectedShipmentId === detail.shipment.id
 - Stage 18A.2 CI #97 validates scenario discoverability through the same accepted gates.
 - Stage 18B.1 CI #101 validates the operational snapshot through the same accepted gates.
 - Stage 18C.1 CI #106 validates first-visit orientation, synchronized Chromium E2E and the same accepted gates.
+- Stage 18C.2 CI #110 validates transition feedback clarity, stale-detail safety and the same accepted gates.
 - Production updates remain manual and explicitly gated.
 
 ### Stage 15D accepted rehearsal evidence
@@ -695,6 +726,21 @@ selectedShipmentId === detail.shipment.id
 - final public `/health` returned `{"status":"ok","service":"etrn-flow-api"}`;
 - API, PostgreSQL, host Nginx, Certbot and neighboring projects were not modified.
 
+### Stage 18C.2 accepted evidence
+
+- Stage 18C.2 replaced the generic transition-success notice with a concrete action/status message using existing `actionLabels` and `shipmentStateLabels`;
+- `refreshWorkspace(...)` now returns the authoritative refreshed `ShipmentSummary` for the transitioned shipment without an additional API request;
+- stale/mismatched detail does not drive the success status;
+- if the transitioned shipment cannot safely be found after refresh, the existing `shipment_detail_unavailable` recoverable-error path is used instead of showing a false concrete success message;
+- component tests cover normal `DEMO-001` feedback, `DEMO-002` attention/recovery feedback, cancellation and the missing-refreshed-shipment safety path; the web suite passed 42 tests;
+- PR #41 product head `16f8dd4982a3b578ed0094d1134c2e405275df00` passed CI #110 and was squash-merged as `09e7bed392ae57f8cb3f505595daef97b3f2b9e3`;
+- production checkout advanced to `09e7bed392ae57f8cb3f505595daef97b3f2b9e3` through a web-only update on 2026-08-09;
+- only `etrn-flow-prod-web` was rebuilt/recreated with `--no-deps`;
+- final web health was `healthy` and exact binding remained `127.0.0.1:8083:8080`;
+- production bundle `/assets/index-D2vGR1sq.js` contained all accepted Stage 18C.2 markers;
+- final public `/health` returned `{"status":"ok","service":"etrn-flow-api"}`;
+- API, PostgreSQL, host Nginx, Certbot and neighboring projects were not modified.
+
 Rate limiting is guest-session based, not client-IP based. Host proxy configuration preserves protocol semantics, but IP-based abuse-control semantics are not part of the accepted application baseline.
 
 ## 14. AI-agent workflow
@@ -730,9 +776,9 @@ Rules:
 
 ## 16. Current next step
 
-Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario, Stage 17D Commercial Conversion Layer, Stage 18A UX Scenario Orientation & Discoverability, Stage 18B.1 Operational Snapshot and Stage 18C.1 First-Visit Orientation are accepted and deployed. The production demo also includes the StalarVision favicon maintenance update.
+Stage 17A Guided Demo Experience, Stage 17B Complete Transport Lifecycle, Stage 17C Managed Attention Scenario, Stage 17D Commercial Conversion Layer, Stage 18A UX Scenario Orientation & Discoverability, Stage 18B.1 Operational Snapshot, Stage 18C.1 First-Visit Orientation and Stage 18C.2 Transition Feedback Clarity are accepted and deployed. The production demo also includes the StalarVision favicon maintenance update.
 
-The Stage 18C.1 documentation sync records the accepted repository, CI and production evidence. No feature stage is currently active.
+The Stage 18C.2 documentation sync records the accepted repository, CI and production evidence. No feature stage is currently active.
 
 The next product increment, if justified, should be selected only after reviewing the live demo, operational state and available evidence in the absence of real-customer feedback. Do not automatically add analytics, authentication, RBAC, real integrations, product redesign, a larger dashboard, persistent onboarding state or broad new functionality without a separate stage decision.
 
